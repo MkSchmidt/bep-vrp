@@ -22,6 +22,5 @@ def load_netfile(name):
     return net
 
 anaheim = load_netfile("Anaheim")
-print("Hello World!!")
 
 
