@@ -59,6 +59,6 @@ def load_tripsfile(name):
 
 
 # Load both files
-nodes = load_nodefile("Berlin-friedrichshain")
-edges = load_edgefile("Berlin-friedrichshain")
-trips = load_tripsfile("berlin-friedrichshain")
+nodes = load_nodefile("Berlin-Friedrichshain")
+edges = load_edgefile("Berlin-Friedrichshain")
+trips = load_tripsfile("Berlin-Friedrichshain")
