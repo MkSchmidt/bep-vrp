@@ -6,7 +6,7 @@ import json
 project_root = os.path.dirname(__file__)
 
 def load_nodefile(path):
-    node_df = pd.read_csv(path, sep=r"\s+", index_col="Node")
+    node_df = pd.read_csv(path, sep=r"\s+")
 
     trimmed = [s.strip().lower() for s in node_df.columns]
     node_df.columns = trimmed
@@ -53,7 +53,7 @@ def read_folder(folder_path):
     nodefiles_tntp = list(filter(lambda name: re.match(r".*_node\.tntp$", name), files))
     if len(nodefiles_tntp) > 0:
         node_path = os.path.join(folder_path, nodefiles_tntp[0])
-        nodes = load_nodefile(nodefiles_tntp[0])
+        nodes = load_nodefile(node_path)
     else:
         nodefiles_geojson = list(filter(lambda name: re.match(r".*_nodes\.geojson$", name), files))
         assert len(nodefiles_geojson) > 0, "node file moet bestaan"
