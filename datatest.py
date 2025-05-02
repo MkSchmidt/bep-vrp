@@ -10,8 +10,7 @@ def load_nodefile(name):
 
     trimmed= [s.strip().lower() for s in node.columns]
     node.columns = trimmed
-
-    # And drop the silly first andlast columns
+    
     node.drop([';'], axis=1, inplace=True)
     
     # Metadata
@@ -41,4 +40,21 @@ def load_netfile(name):
 net = load_netfile("SiouxFalls")
 node = load_nodefile("SiouxFalls")
 print(net,node)
+
+print("<nodes>")
+for index, row in node.iterrows():
+    node_id = row['node']
+    x = row['x']
+    y = row['y']
+    
+    print(f'<node id="{node_id}" x="{x}" y="{y}" type="priority"/>')
+print("<\nodes>")
+
+with open("my_nodes.nod.xml", "w") as f:
+    f.write(node_xml)
+
+with open("my_edges.edg.xml", "w") as f:
+    f.write(edge_xml)
+    
+netconvert --node-files=SiouxFalls.nod.xml --edge-files=SiouxFalls.edg.xml --output-file=SiouxFalls.net.xml
 
