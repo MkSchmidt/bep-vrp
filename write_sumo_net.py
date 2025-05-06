@@ -91,13 +91,13 @@ def convert_folder(input_folder, output_folder):
     os.makedirs(output_folder, exist_ok=True)
     
     common_name = os.path.basename(input_folder).lower()
-    nodes_name = f"{common_name}.nod.xml"
-    edges_name = f"{common_name}.edg.xml"
-    trips_name = f"{common_name}.rou.xml"
-    net_name = f"{common_name}.net.xml"
-    write_sumo_nodes(nodes, os.path.join(output_folder, nodes_name))
-    write_sumo_edges(edges, os.path.join(output_folder, edges_name))
-    write_sumo_xml_plain(trips, os.path.join(output_folder, trips_name))
+    nodes_name = os.path.join(output_folder, f"{common_name}.nod.xml")
+    edges_name = os.path.join(output_folder, f"{common_name}.edg.xml")
+    trips_name = os.path.join(output_folder, f"{common_name}.rou.xml")
+    net_name = os.path.join(output_folder, f"{common_name}.net.xml")
+    write_sumo_nodes(nodes, nodes_name)
+    write_sumo_edges(edges, edges_name)
+    write_sumo_xml_plain(trips, trips_name)
 
     create_sumo_config(net_name, trips_name, os.path.join(output_folder, f"{common_name}.sumocfg"))
-    generate_net_xml(nodes_name, edges_name, output_file=os.path.join(output_folder, net_name))
+    generate_net_xml(nodes_name, edges_name, net_name)
