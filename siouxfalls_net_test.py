@@ -67,7 +67,7 @@ def write_sumo_nodes(df, filename):
         x = delta_lon * (math.pi / 180) * earth_radius * math.cos(ref_lat_rad)
         y = delta_lat * (math.pi / 180) * earth_radius
         return x, y
-
+        
     with open(filename, "w") as f:
         f.write('<?xml version="1.0" encoding="UTF-8"?>\n')
         f.write('<network version="1.0">\n')  # Adding network version
@@ -129,6 +129,7 @@ def create_sumo_config(network_file, trips_file, config_filename):
         f.write(f'    </simulation>\n')
         f.write(f'</configuration>\n')
 
+
 # Main execution
 siouxfallsnet = load_netfile("SiouxFalls")
 siouxfallsnode = load_nodefile("SiouxFalls")
@@ -145,3 +146,20 @@ write_sumo_xml_plain(trips, "trips.rou.xml")
 
 # Write config for SUMO
 create_sumo_config('network.net.xml', 'trips.rou.xml', 'sumo_sim.sumocfg')
+
+
+# If netedit is in your PATH
+subprocess.run(["netedit", "network.net.xml"])
+
+# Launch SUMO-GUI with the generated network and routes
+try:
+    subprocess.run([
+        "sumo-gui",
+        "-n", "network.net.xml",
+        "-r", "trips.rou.xml"
+    ], check=True)
+    print("✅ SUMO-GUI launched successfully.")
+except subprocess.CalledProcessError as e:
+    print("❌ Failed to launch SUMO-GUI:", e)
+except FileNotFoundError:
+    print("❌ 'sumo-gui' not found. Is SUMO installed and in your system PATH?")
