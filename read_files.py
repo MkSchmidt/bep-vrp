@@ -43,6 +43,26 @@ def load_nodefile_geojson(path):
             ]
     return pd.DataFrame.from_records(nodes)
 
+def load_tripsfile(file_path):
+    trips = []
+    with open(file_path, 'r') as f:
+        lines = f.readlines()
+    origin = None
+    for line in lines:
+        line = line.strip()
+        if line.startswith('Origin'):
+            origin = line.split()[1]
+        elif ':' in line:
+            parts = line.split(';')
+            for part in parts:
+                if ':' in part:
+                    dest, val = part.split(':')
+                    dest = dest.strip()
+                    val = float(val.strip())
+                    if val > 0:
+                        trips.append((origin, dest, int(val)))
+    return trips
+
 def read_folder(folder_path):
     files = os.listdir(folder_path)
     edgefiles = list(filter(lambda name: re.match(r"(?i).*_net\.tntp$", name), files))
@@ -59,8 +79,14 @@ def read_folder(folder_path):
         assert len(nodefiles_geojson) > 0, "node file moet bestaan"
         node_path = os.path.join(folder_path, nodefiles_geojson[0])
         nodes = load_nodefile_geojson(node_path)
+    
+    tripsfiles = list(filter(lambda name: re.match(r"(?i).*_trips\.tntp$", name), files))
+    assert len(tripsfiles) > 0, "TNTP voor de trips moet bestaan"
 
-    return edges, nodes
+    trips_path = os.path.join(folder_path, tripsfiles[0])
+    trips = load_tripsfile(trips_path)
+
+    return edges, nodes, trips
 
 def test_folder_reading():
     network_dir = os.path.join(project_root, "TransportationNetworks")

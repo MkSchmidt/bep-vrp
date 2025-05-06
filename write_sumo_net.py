@@ -3,52 +3,9 @@ import pandas as pd
 import re
 import math
 import subprocess
+from read_files import read_folder
 
 project_root = os.path.dirname(__file__)
-
-def load_netfile(name):
-    netfile = os.path.join(project_root, "TransportationNetworks", name, f"{name}_net.tntp")
-    net = pd.read_csv(netfile, skiprows=8, sep='\t')
-    trimmed = [s.strip().lower() for s in net.columns]
-    net.columns = trimmed
-    net.drop(['~', ';'], axis=1, inplace=True)
-    
-    with open(netfile, "r") as f:
-        attrs = re.findall("(?m)^\\s*\\<(.*)\\>\\s*(.*\\S)\\s*$", f.read())
-    net.attrs = dict(attrs)
-    return net
-
-def parse_tntp(file_path):
-    trips = []
-    with open(file_path, 'r') as f:
-        lines = f.readlines()
-    origin = None
-    for line in lines:
-        line = line.strip()
-        if line.startswith('Origin'):
-            origin = line.split()[1]
-        elif ':' in line:
-            parts = line.split(';')
-            for part in parts:
-                if ':' in part:
-                    dest, val = part.split(':')
-                    dest = dest.strip()
-                    val = float(val.strip())
-                    if val > 0:
-                        trips.append((origin, dest, int(val)))
-    return trips
-
-def load_nodefile(name):
-    netfile = os.path.join(project_root, "TransportationNetworks", name, f"{name}_node.tntp")
-    net = pd.read_csv(netfile, sep='\t')
-    trimmed = [s.strip().lower() for s in net.columns]
-    net.columns = trimmed
-    net.drop([';'], axis=1, inplace=True)
-    
-    with open(netfile, "r") as f:
-        attrs = re.findall("(?m)^\\s*\\<(.*)\\>\\s*(.*\\S)\\s*$", f.read())
-    net.attrs = dict(attrs)
-    return net
 
 def write_sumo_nodes(df, filename):
     df.columns = [c.strip().lower().lstrip(';') for c in df.columns]
@@ -129,19 +86,18 @@ def create_sumo_config(network_file, trips_file, config_filename):
         f.write(f'    </simulation>\n')
         f.write(f'</configuration>\n')
 
-# Main execution
-siouxfallsnet = load_netfile("SiouxFalls")
-siouxfallsnode = load_nodefile("SiouxFalls")
+def convert_folder(input_folder, output_folder):
+    edges, nodes, trips = read_folder(input_folder)
+    os.makedirs(output_folder, exist_ok=True)
+    
+    common_name = os.path.basename(input_folder).lower()
+    nodes_name = f"{common_name}.nod.xml"
+    edges_name = f"{common_name}.edg.xml"
+    trips_name = f"{common_name}.rou.xml"
+    net_name = f"{common_name}.net.xml"
+    write_sumo_nodes(nodes, os.path.join(output_folder, nodes_name))
+    write_sumo_edges(edges, os.path.join(output_folder, edges_name))
+    write_sumo_xml_plain(trips, os.path.join(output_folder, trips_name))
 
-write_sumo_nodes(siouxfallsnode, "nodes.nod.xml")
-write_sumo_edges(siouxfallsnet, "edges.edg.xml")
-
-# Generate the compiled network
-generate_net_xml("nodes.nod.xml", "edges.edg.xml")
-
-# Generate trips
-trips = parse_tntp(os.path.join(project_root, "TransportationNetworks", "SiouxFalls", "SiouxFalls_trips.tntp"))
-write_sumo_xml_plain(trips, "trips.rou.xml")
-
-# Write config for SUMO
-create_sumo_config('network.net.xml', 'trips.rou.xml', 'sumo_sim.sumocfg')
+    create_sumo_config(net_name, trips_name, os.path.join(output_folder, f"{common_name}.sumocfg"))
+    generate_net_xml(nodes_name, edges_name, output_file=os.path.join(output_folder, net_name))
