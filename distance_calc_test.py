@@ -105,20 +105,25 @@ def calculate_edge_lengths(edge_df, coord_map):
 
     edge_df["length"] = distances
     return edge_df
-'''
-def calculate_edge_speed(edge_df): 
+
+
+def calculate_speeds_from_distance(edge_df):
     edge_df.columns = [col.strip().lower() for col in edge_df.columns]
 
-    if "distance_m" not in edge_df.columns or "free_flow_time" not in edge_df.columns:
-        raise ValueError("Data must include 'distance_m' and 'free_flow_time'.")
+    if "length" not in edge_df.columns or "free_flow_time" not in edge_df.columns:
+        raise ValueError("Data must include 'length' and 'free_flow_time'.")
 
     # Convert free-flow time from minutes to seconds
-    edge_df["speed_mps"] = edge_df["distance_m"] / (edge_df["free_flow_time"] * 60)
+    edge_df["speed_mps"] = edge_df["length"] / (edge_df["free_flow_time"] * 60)
     edge_df["speed_kph"] = edge_df["speed_mps"] * 3.6
     edge_df["speed_mph"] = edge_df["speed_mps"] * 2.23694
 
+    # Round mph to the nearest multiple of 5
+    edge_df["speed_mph_round"] = edge_df["speed_mph"].apply(lambda x: round(x / 5) * 5)
+
     return edge_df
-'''
+
+
 def write_sumo_edges(df, filename):
     df.columns = [col.strip().lower() for col in df.columns]
     with open(filename, "w") as f:
@@ -183,9 +188,43 @@ write_sumo_edges(siouxfallsnet_with_lengths, "edges.edg.xml")
 # Print all edges with distances
 print(siouxfallsnet_with_lengths[["init_node", "term_node", "length"]])
 
-# Optionally save to CSV
+# Save to CSV
 siouxfallsnet_with_lengths[["init_node", "term_node", "length"]].to_csv("edges_with_lengths.csv", index=False, float_format="%.9f")
 print("✅ Edge lengths saved to edges_with_lengths.csv")
+
+
+# Load geometry-based distances
+distances_df = pd.read_csv("edges_with_lengths.csv")  # has: init_node, term_node, length
+
+# Load original travel times
+original_net = load_netfile("SiouxFalls")  # has free_flow_time
+original_times = original_net[["init_node", "term_node", "free_flow_time"]]
+
+# Merge
+merged = pd.merge(distances_df, original_times, on=["init_node", "term_node"])
+
+# Calculate speed
+result = calculate_speeds_from_distance(merged)
+
+# Save
+def save_pretty_table(df, filename):
+    with open(filename, 'w') as f:
+        # Write header with spacing
+        f.write(f"{'init_node':>10} {'term_node':>10} {'length':>12} {'free_flow':>12} {'speed_kph':>10} {'speed_mph':>10} {'speed_mph_round':>10}\n")
+        for _, row in df.iterrows():
+            f.write(
+                f"{int(row['init_node']):>10} "
+                f"{int(row['term_node']):>10} "
+                f"{row['length']:>12.2f} "
+                f"{row['free_flow_time']:>12.2f} "
+                f"{row['speed_kph']:>10.2f} "
+                f"{row['speed_mph']:>10.2f} "
+                f"{row['speed_mph_round']:>10} \n" 
+            )
+
+save_pretty_table(result, "edges_with_speeds.txt")
+print("✅ Speed analysis saved to edges_with_speeds.txt")
+
 
 generate_net_xml("nodes.nod.xml", "edges.edg.xml")
 
@@ -195,7 +234,7 @@ write_sumo_xml_plain(trips, "trips.rou.xml")
 create_sumo_config('network.net.xml', 'trips.rou.xml', 'sumo_sim.sumocfg')
 
 subprocess.run(["netedit", "network.net.xml"])
-
+'''
 try:
     subprocess.run([
         "sumo-gui",
@@ -207,3 +246,4 @@ except subprocess.CalledProcessError as e:
     print("❌ Failed to launch SUMO-GUI:", e)
 except FileNotFoundError:
     print("❌ 'sumo-gui' not found. Is SUMO installed and in your system PATH?")
+'''
