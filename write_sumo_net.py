@@ -47,17 +47,45 @@ def write_sumo_edges(df, filename):
         f.write('</network>\n')
 
 def write_sumo_xml_plain(trips, output_path):
+    """
+    trips: list of (from_node, to_node, num_trips)
+    Produces a <trips> (or <routes>) file where every individual trip
+    is sorted by its 'depart' time to satisfy SUMO's requirements.
+    """
+    # 1) Build a flat list of every single trip
+    trip_list = []
+    trip_counter = 0
+    for from_node, to_node, num in trips:
+        if num <= 0:
+            continue
+        for i in range(num):
+            depart_time = i * 10
+            trip_id     = f"{from_node}-{to_node}-{trip_counter}"
+            trip_counter += 1
+            trip_list.append({
+                "id":     trip_id,
+                "depart": depart_time,
+                "from":   from_node,
+                "to":     to_node
+            })
+
+    # 2) Sort strictly by depart, then by id (to remove SUMO warnings)
+    trip_list.sort(key=lambda t: (t["depart"], t["id"]))
+
+    # 3) Write them out
     with open(output_path, 'w') as f:
         f.write('<trips>\n')
-        trip_counter = 0
-        for from_node, to_node, num in trips:
-            if num <= 0:
-                continue
-            for i in range(num):
-                trip_id = f"{from_node}-{to_node}-{trip_counter}"
-                trip_counter += 1
-                f.write(f'    <trip id="{trip_id}" depart="{i * 10}" from="{from_node}" to="{to_node}" number="1"/>\n')
+        for t in trip_list:
+            f.write(
+                f'  <trip '
+                f'id="{t["id"]}" '
+                f'depart="{t["depart"]}" '
+                f'from="{t["from"]}" '
+                f'to="{t["to"]}" '
+                f'number="1"/>\n'
+            )
         f.write('</trips>\n')
+
 def generate_net_xml(node_file, edge_file, output_file="network.net.xml"):
     result = subprocess.run([
         "netconvert",
@@ -87,7 +115,31 @@ def create_sumo_config(network_file, trips_file, config_filename):
         f.write(f'</configuration>\n')
 
 def convert_folder(input_folder, output_folder):
-    edges, nodes, trips = read_folder(input_folder)
+    edges, nodes, trips, flows = read_folder(input_folder)
+
+    # 1) DEBUG: what do we really have?
+    print("RAW flow columns ➜", flows.columns.tolist())
+
+    # 2) normalize: strip whitespace, lowercase, drop leading semicolons
+    flows.columns = [c.strip().lower().lstrip(';') for c in flows.columns]
+    print("NORMALIZED flow columns ➜", flows.columns.tolist())
+
+    # 3) rename to match your edges DF
+    flows = flows.rename(columns={
+        "from":   "init_node",
+        "to":     "term_node",
+        "volume": "flow"
+    })
+    print("RENAMED flow columns ➜", flows.columns.tolist())
+
+    # 4) now it’s safe to pick out init_node, term_node, flow
+    edges = edges.merge(
+        flows[["init_node","term_node","flow"]],
+        on=["init_node","term_node"],
+        how="left"
+    ).fillna({"flow": 0})
+
+
     os.makedirs(output_folder, exist_ok=True)
     
     common_name = os.path.basename(input_folder).lower()

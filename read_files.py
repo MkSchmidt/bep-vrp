@@ -30,6 +30,14 @@ def load_edgefile(path):
 
     return edge_df
 
+def load_flowfile(path):
+    flow_df = pd.read_csv(path, delim_whitespace=True)
+    flow_df.columns = [c.strip().lower() for c in flow_df.columns]
+    for dropcol in ['~',';']:
+        if dropcol in flow_df.columns:
+            flow_df.drop(columns=dropcol, inplace=True)
+    return flow_df
+
 def load_nodefile_geojson(path):
     with open(path, "r") as f:
         node_dict = json.load(f)
@@ -86,7 +94,12 @@ def read_folder(folder_path):
     trips_path = os.path.join(folder_path, tripsfiles[0])
     trips = load_tripsfile(trips_path)
 
-    return edges, nodes, trips
+    flowfiles = [f for f in files if re.match(r"(?i).*_flow\.tntp$", f)]
+    assert flowfiles, "Flow file must exist"
+    flow_path = os.path.join(folder_path, flowfiles[0])
+    flows = load_flowfile(flow_path)
+
+    return edges, nodes, trips, flows
 
 def test_folder_reading():
     network_dir = os.path.join(project_root, "TransportationNetworks")
