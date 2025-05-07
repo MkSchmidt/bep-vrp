@@ -1,3 +1,4 @@
+
 import os
 import pandas as pd
 import re
@@ -123,7 +124,6 @@ def calculate_speeds_from_distance(edge_df):
 
     return edge_df
 
-
 def write_sumo_edges(df, filename):
     df.columns = [col.strip().lower() for col in df.columns]
     with open(filename, "w") as f:
@@ -132,7 +132,8 @@ def write_sumo_edges(df, filename):
         f.write("<edges>\n")
         for i, row in df.iterrows():
             length_attr = f' length="{row["length"]:.2f}"' if pd.notna(row["length"]) else ""
-            f.write(f'  <edge id="{i}" from="{row["init_node"]}" to="{row["term_node"]}"{length_attr} />\n')
+            speed_mps_attr = f' speed_mps="{row["speed_mps"]:.2f}"' if pd.notna(row["speed_mps"]) else ""
+            f.write(f'  <edge id="{i}" from="{row["init_node"]}" to="{row["term_node"]}"{length_attr}{speed_mps_attr} />\n')
         f.write("</edges>\n")
         f.write('</network>\n')
 
@@ -232,9 +233,9 @@ trips = parse_tntp(os.path.join(project_root, "TransportationNetworks", "SiouxFa
 write_sumo_xml_plain(trips, "trips.rou.xml")
 
 create_sumo_config('network.net.xml', 'trips.rou.xml', 'sumo_sim.sumocfg')
-
-subprocess.run(["netedit", "network.net.xml"])
 '''
+subprocess.run(["netedit", "network.net.xml"])
+
 try:
     subprocess.run([
         "sumo-gui",
