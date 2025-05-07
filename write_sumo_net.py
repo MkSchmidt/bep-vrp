@@ -120,18 +120,29 @@ def create_sumo_config(network_file, trips_file, config_filename):
         f.write(f'</configuration>\n')
 
 def convert_folder(input_folder, output_folder):
+    # 0) read TNTP inputs
     edges, nodes, trips, flows = read_folder(input_folder)
 
-    # ── NEW: cast origin/dest to int so they match your maps ──
+    # ── ensure trips use ints so mapping works ──
     trips = [(int(orig), int(dest), num) for orig, dest, num in trips]
 
-    # 1) build a mapping from node → edge_id
+    # 1) build a mapping from node → a representative edge ID "u_v"
     edges['edge_id'] = edges.apply(
-        lambda r: f"{int(r['init_node'])}_{int(r['term_node'])}",
-        axis=1
+        lambda r: f"{int(r['init_node'])}_{int(r['term_node'])}", axis=1
     )
     origin_map = edges.groupby('init_node')['edge_id'].first().to_dict()
     dest_map   = edges.groupby('term_node')['edge_id'].first().to_dict()
+
+    # ──────────────── Deduce number of lanes ────────────────
+    # assume each lane can carry 2000 vehicles/hour
+    PER_LANE_CAPACITY = 1800.0
+    edges['lanes'] = (
+        edges['capacity']
+        .div(PER_LANE_CAPACITY)
+        .round()
+        .astype(int)
+        .clip(lower=1)
+    )
 
     # 2) prepare output folder & filenames
     os.makedirs(output_folder, exist_ok=True)
@@ -143,7 +154,7 @@ def convert_folder(input_folder, output_folder):
     routed_name  = os.path.join(output_folder, f"{common_name}.routed.rou.xml")
     cfg_name     = os.path.join(output_folder, f"{common_name}.sumocfg")
 
-    # 3) write nodes and edges (with your lane speeds)
+    # 3) write nodes & edges (write_sumo_edges will read edges['lanes'])
     write_sumo_nodes(nodes, nodes_name)
     write_sumo_edges(edges, edges_name)
 
