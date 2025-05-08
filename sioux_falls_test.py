@@ -1,5 +1,7 @@
 from write_sumo_net import project_root, convert_folder
 import os
 
-siouxfallspath = os.path.join(project_root, "TransportationNetworks", "SiouxFalls")
-convert_folder(siouxfallspath, os.path.join(project_root, "output"))
+city = "SiouxFalls"
+citypath = (city+"path")
+citypath = os.path.join(project_root, "TransportationNetworks", city)
+convert_folder(citypath, os.path.join(project_root, "output"))
