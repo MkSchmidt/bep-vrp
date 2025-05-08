@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration xmlns="http://www.eclipse.org/otf/1.0">
+    <input>
+        <net-file value="c:\Users\luuks\bep-vrp\output\anaheim.net.xml"/>
+        <route-files value="c:\Users\luuks\bep-vrp\output\anaheim.routed.rou.xml"/>
+    </input>
+    <simulation>
+        <time-to-teleport value="0"/>
+        <step-length value="1.0"/>
+    </simulation>
+</configuration>

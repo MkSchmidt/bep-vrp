@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/sumoConfiguration.xsd">
+  <input>
+    <net-file value="c:\Users\luuks\bep-vrp\sumo_simulation_output\SiouxFalls\SiouxFalls.net.xml"/>
+    <route-files value="c:\Users\luuks\bep-vrp\sumo_simulation_output\SiouxFalls\trips.rou.xml"/>
+  </input>
+  <time>
+    <begin value="0"/>
+  </time>
+  <processing>
+    <time-to-teleport value="-1"/>
+    <ignore-route-errors value="true"/>
+  </processing>
+  <routing>
+    <device.rerouting.probability value="0"/>
+  </routing>
+  <report>
+    <verbose value="true"/>
+    <duration-log.statistics value="true"/>
+  </report>
+</configuration>

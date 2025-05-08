@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration xmlns="http://www.eclipse.org/otf/1.0">
+    <input>
+        <net-file value="network.net.xml"/>
+        <route-files value="trips.rou.xml"/>
+    </input>
+    <simulation>
+        <time-to-teleport value="0"/>
+        <step-length value="1.0"/>
+    </simulation>
+</configuration>
