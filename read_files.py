@@ -2,6 +2,7 @@ import os
 import pandas as pd
 import re
 import json
+import io
 
 project_root = os.path.dirname(__file__)
 
@@ -17,27 +18,62 @@ def load_nodefile(path):
     return node_df
 
 def load_edgefile(path):
-    edge_df = pd.read_csv(path, skiprows=8, sep='\t')
+    lines = open(path, 'r').read().splitlines()
+    metadata_header = ''
+    start = 0
+    for i, l in enumerate(lines):
+        m = re.match(r'^\s*<original header>\s*(.*)$', l, re.IGNORECASE)
+        if m:
+            metadata_header = m.group(1).strip()
+        if l.strip().lower() == '<end of metadata>':
+            start = i + 1
+            break
+    header_idx = None
+    for i in range(start, len(lines)):
+        txt = lines[i].lstrip('~').strip()
+        if not txt or txt.startswith('<'):
+            continue
+        tokens = re.split(r'\s+', txt.rstrip(';'))
+        if 'length' in [t.lower() for t in tokens]:
+            header_idx = i
+            break
+    if header_idx is None:
+        for i in range(len(lines) - 1):
+            txt = lines[i].lstrip('~').strip()
+            if not txt or txt.startswith('<'):
+                continue
+            if 'length' in txt.lower() and re.search(r'\d', lines[i + 1]):
+                header_idx = i
+                break
+    if header_idx is None:
+        raise ValueError(f"Could not locate edge-file header in {path}")
+    raw_header = lines[header_idx].lstrip('~').strip().rstrip(';')
+    tokens = [tok for tok in re.split(r'\s+', raw_header) if tok and tok != ';']
+    seen = {}
+    cols = []
+    for tok in tokens:
+        name = re.sub(r'[^0-9A-Za-z_]', '_', tok).lower().strip('_')
+        count = seen.get(name, 0)
+        seen[name] = count + 1
+        cols.append(name if count == 0 else f"{name}_{count}")
+    data_buf = io.StringIO('\n'.join(lines[header_idx + 1:]))
+    df = pd.read_csv(data_buf, delim_whitespace=True, comment=';', header=None, names=cols)
+    df.attrs['original_header'] = metadata_header
+    return df
 
-    trimmed = [s.strip().lower() for s in edge_df.columns]
-    edge_df.columns = trimmed
 
-    edge_df.drop(['~', ';'], axis=1, inplace=True)
 
-    with open(path, "r") as f:
-        attrs = re.findall(r"(?m)^\s*<(.*)>\s*(.*\S)\s*$", f.read())
-    edge_df.attrs = dict(attrs)
-
-    return edge_df
-
-def load_flowfile(path):
-    flow_df = pd.read_csv(path, delim_whitespace=True)
-    flow_df.columns = [c.strip().lower() for c in flow_df.columns]
-    for dropcol in ['~',';']:
-        if dropcol in flow_df.columns:
-            flow_df.drop(columns=dropcol, inplace=True)
-    return flow_df
-
+def load_flowfile(p):
+    L = open(p).read().splitlines()
+    i = next(j for j, l in enumerate(L) if l.strip().lower().startswith('from'))
+    buf = '\n'.join(L[i:])
+    return (
+        pd.read_csv(io.StringIO(buf),
+                    delim_whitespace=True,
+                    comment=';',
+                    header=0)
+          .rename(str.lower, axis=1)
+    )
 def load_nodefile_geojson(path):
     with open(path, "r") as f:
         node_dict = json.load(f)
@@ -53,22 +89,28 @@ def load_nodefile_geojson(path):
 
 def load_tripsfile(file_path):
     trips = []
-    with open(file_path, 'r') as f:
-        lines = f.readlines()
     origin = None
-    for line in lines:
-        line = line.strip()
-        if line.startswith('Origin'):
-            origin = line.split()[1]
-        elif ':' in line:
-            parts = line.split(';')
-            for part in parts:
-                if ':' in part:
-                    dest, val = part.split(':')
-                    dest = dest.strip()
-                    val = float(val.strip())
-                    if val > 0:
-                        trips.append((origin, dest, int(val)))
+    with open(file_path, 'r') as f:
+        for line in f:
+            line = line.strip()
+            # update origin when we see it
+            if line.startswith('Origin'):
+                _, origin = line.split(maxsplit=1)
+                continue
+
+            # only look for dest:val pairs after an origin
+            if origin and ':' in line:
+                for part in line.split(';'):
+                    if ':' not in part:
+                        continue
+                    dest, val = part.split(':', 1)
+                    try:
+                        count = float(val.strip())
+                    except ValueError:
+                        # skip dates or any non-numeric entries
+                        continue
+                    if count > 0:
+                        trips.append((origin, dest.strip(), int(count)))
     return trips
 
 def read_folder(folder_path):
@@ -77,6 +119,7 @@ def read_folder(folder_path):
     assert len(edgefiles) > 0, "TNTP voor het net moet bestaan"
     edge_path = os.path.join(folder_path, edgefiles[0])
     edges = load_edgefile(edge_path)
+    
 
     nodefiles_tntp = list(filter(lambda name: re.match(r"(?i).*_node\.tntp$", name), files))
     if len(nodefiles_tntp) > 0:

@@ -1,182 +1,130 @@
 import os
 import pandas as pd
-import re
-import math
 import subprocess
+import math
+import re
 from read_files import read_folder
 
-project_root = os.path.dirname(__file__)
-
 def write_sumo_nodes(df, filename):
+    # normalize column names
     df.columns = [c.strip().lower().lstrip(';') for c in df.columns]
-    if ';' in df.columns:
-        df.drop([';'], axis=1, inplace=True)
+    xs = df['x'].astype(float)
+    ys = df['y'].astype(float)
 
-    ref_lat = df.iloc[0]["y"]
-    ref_lon = df.iloc[0]["x"]
-    earth_radius = 6371000
-
-    def latlon_to_meters(lat, lon):
-        lat_rad = math.radians(lat)
-        ref_lat_rad = math.radians(ref_lat)
-        delta_lat = lat - ref_lat
-        delta_lon = lon - ref_lon
-        x = delta_lon * (math.pi / 180) * earth_radius * math.cos(ref_lat_rad)
-        y = delta_lat * (math.pi / 180) * earth_radius
-        return x, y
-
-    with open(filename, "w") as f:
-        f.write('<?xml version="1.0" encoding="UTF-8"?>\n')
-        f.write('<network version="1.0">\n')  # Adding network version
-        f.write("<nodes>\n")
-        for _, row in df.iterrows():
-            x, y = latlon_to_meters(row["y"], row["x"])
-            f.write(f'  <node id="{int(row["node"])}" x="{x:.2f}" y="{y:.2f}" />\n')
-        f.write("</nodes>\n")
-        f.write('</network>\n')
-
-def write_sumo_edges(df, filename):
-    # normalize the TNTP headers
-    df.columns = [c.strip().lower().lstrip(';') for c in df.columns]
-
-    FT_TO_M  = 0.3048   # feet → meters
-    MIN_TO_S = 60.0     # minutes → seconds
-
-    with open(filename, "w") as f:
-        f.write('<?xml version="1.0" encoding="UTF-8"?>\n')
-        f.write('<network version="1.0">\n')
-        f.write("  <edges>\n")
-
-        for _, row in df.iterrows():
-            u = int(row["init_node"])
-            v = int(row["term_node"])
-            # convert units
-            length_m  = float(row["length"]) * FT_TO_M
-            speed_mps = float(row["speed"])  * FT_TO_M / MIN_TO_S
-            lanes     = int(row.get("lanes", 1))
-
-            # write out the edge with speed & lane count
-            f.write(
-                f'    <edge id="{u}_{v}" from="{u}" to="{v}" '
-                f'speed="{speed_mps:.2f}" '
-                f'numLanes="{lanes}"/>\n'
+    # if coordinates are “big” they must be TNTP feet → convert to meters,
+    # otherwise assume they’re lat/lon in degrees
+    if xs.abs().max() > 1000 or ys.abs().max() > 1000:
+        def project(x, y):
+            return x * 0.3048, y * 0.3048
+    else:
+        ref_lat = ys.iloc[0]
+        ref_lon = xs.iloc[0]
+        R = 6_371_000
+        def project(x, y):
+            dlat = math.radians(y - ref_lat)
+            dlon = math.radians(x - ref_lon)
+            return (
+                dlon * R * math.cos(math.radians(ref_lat)),
+                dlat * R
             )
 
-        f.write("  </edges>\n")
-        f.write("</network>\n")
+    with open(filename, 'w') as f:
+        f.write('<?xml version="1.0" encoding="UTF-8"?>\n')
+        f.write('<network version="1.0">\n')
+        f.write('  <nodes>\n')
+        for _, row in df.iterrows():
+            nid = int(row['node'])
+            xm, ym = project(float(row['x']), float(row['y']))
+            f.write(f'    <node id="{nid}" x="{xm:.2f}" y="{ym:.2f}" />\n')
+        f.write('  </nodes>\n')
+        f.write('</network>\n')
+
+
+def write_sumo_edges(df, filename):
+    FT_TO_M = 0.3048; MI_TO_M = 1609.34; MIN_TO_S = 60.0
+    hdr = df.attrs.get('original_header', '')
+    m = re.search(r'length\s*\(\s*([^)]+)\)', hdr, re.IGNORECASE)
+    if m and 'mi' in m.group(1).lower(): LEN_TO_M = MI_TO_M
+    elif m and 'ft' in m.group(1).lower(): LEN_TO_M = FT_TO_M
+    else:
+        maxval = df['length'].astype(float).max()
+        LEN_TO_M = MI_TO_M if maxval < 10 else FT_TO_M
+    with open(filename, 'w') as f:
+        f.write('<?xml version="1.0" encoding="UTF-8"?>\n<network version="1.0">\n  <edges>\n')
+        for _, row in df.iterrows():
+            u = int(row['init_node']); v = int(row['term_node'])
+            length_m = float(row['length']) * LEN_TO_M
+            fftt = float(row.get('free_flow_time', row.get('fftt', 0)))
+            speed_mps = length_m / (fftt * MIN_TO_S) if fftt > 0 else 45.0
+            lanes = int(row.get('lanes', 1))
+            f.write(
+                f'    <edge id="{u}_{v}" from="{u}" to="{v}" '
+                f'speed="{speed_mps:.2f}" numLanes="{lanes}" />\n'
+            )
+        f.write('  </edges>\n</network>\n')
+
 
 def write_sumo_xml_plain(trips, origin_map, dest_map, output_path):
-    """
-    trips: list of (from_node, to_node, num_trips)
-    origin_map: node_id -> edge_id, dest_map likewise
-    Writes a <routes> file containing <flow> entries that DUAROUTER will read.
-    """
     with open(output_path, 'w') as f:
         f.write('<routes>\n')
-        for orig_node, dest_node, num in trips:
-            if num <= 0:
-                continue
-            from_edge = origin_map.get(orig_node)
-            to_edge   = dest_map.get(dest_node)
-            if not from_edge or not to_edge:
-                continue
-            # create one flow with all trips
-            flow_id = f"{orig_node}-{dest_node}"
-            # here we span the entire simulation, e.g. from t=0 to t=3600
+        for o, d, n in trips:
+            if n <= 0: continue
+            fe = origin_map.get(o); te = dest_map.get(d)
+            if not fe or not te: continue
             f.write(
-                f'  <flow id="{flow_id}" '
-                f'begin="0" end="3600" '
-                f'from="{from_edge}" to="{to_edge}" '
-                f'number="{int(num)}"/>\n'
+                f'  <flow id="{o}-{d}" begin="0" end="3600" '
+                f'from="{fe}" to="{te}" number="{n}"/>\n'
             )
         f.write('</routes>\n')
 
-def generate_net_xml(node_file, edge_file, output_file="network.net.xml"):
-    result = subprocess.run([
-        "netconvert",
-        f"--node-files={node_file}",
-        f"--edge-files={edge_file}",
-        f"-o={output_file}"
+
+def generate_net_xml(node_file, edge_file, output_file):
+    r = subprocess.run([
+        'netconvert',
+        f'--node-files={node_file}',
+        f'--edge-files={edge_file}',
+        f'-o={output_file}'
     ], capture_output=True, text=True)
+    if r.returncode != 0: print('netconvert error:', r.stderr)
 
-    if result.returncode != 0:
-        print("Error running netconvert:")
-        print(result.stderr)
-    else:
-        print("Successfully generated network.net.xml")
 
-def create_sumo_config(network_file, trips_file, config_filename):
-    with open(config_filename, 'w') as f:
-        f.write(f'<?xml version="1.0" encoding="UTF-8"?>\n')
-        f.write(f'<configuration xmlns="http://www.eclipse.org/otf/1.0">\n')
-        f.write(f'    <input>\n')
-        f.write(f'        <net-file value="{network_file}"/>\n')
-        f.write(f'        <route-files value="{trips_file}"/>\n')
-        f.write(f'    </input>\n')
-        f.write(f'    <simulation>\n')
-        f.write(f'        <time-to-teleport value="0"/>\n')
-        f.write(f'        <step-length value="1.0"/>\n')
-        f.write(f'    </simulation>\n')
-        f.write(f'</configuration>\n')
+def create_sumo_config(network_file, trips_file, config_file):
+    with open(config_file, 'w') as f:
+        f.write('<?xml version="1.0" encoding="UTF-8"?>\n')
+        f.write('<configuration xmlns="http://www.eclipse.org/otf/1.0">\n  <input>\n')
+        f.write(f'    <net-file value="{network_file}"/>\n')
+        f.write(f'    <route-files value="{trips_file}"/>\n  </input>\n')
+        f.write('  <simulation>\n    <time-to-teleport value="0"/>\n    <step-length value="1.0"/>\n  </simulation>\n</configuration>\n')
+
 
 def convert_folder(input_folder, output_folder):
-    # 0) read TNTP inputs
     edges, nodes, trips, flows = read_folder(input_folder)
-
-    # ── ensure trips use ints so mapping works ──
-    trips = [(int(orig), int(dest), num) for orig, dest, num in trips]
-
-    # 1) build a mapping from node → a representative edge ID "u_v"
-    edges['edge_id'] = edges.apply(
-        lambda r: f"{int(r['init_node'])}_{int(r['term_node'])}", axis=1
-    )
-    origin_map = edges.groupby('init_node')['edge_id'].first().to_dict()
-    dest_map   = edges.groupby('term_node')['edge_id'].first().to_dict()
-
-    # ──────────────── Deduce number of lanes ────────────────
-    # assume each lane can carry 2000 vehicles/hour
-    PER_LANE_CAPACITY = 1800.0
-    edges['lanes'] = (
-        edges['capacity']
-        .div(PER_LANE_CAPACITY)
-        .round()
-        .astype(int)
-        .clip(lower=1)
-    )
-
-    # 2) prepare output folder & filenames
+    trips = [(int(o), int(d), n) for o, d, n in trips]
+    if 'tail' in edges.columns and 'head' in edges.columns:
+        edges.rename(columns={'tail':'init_node','head':'term_node'}, inplace=True)
+    elif 'from' in edges.columns and 'to' in edges.columns:
+        edges.rename(columns={'from':'init_node','to':'term_node'}, inplace=True)
+    edges['lanes'] = edges['capacity'].div(2000.0).round().astype(int).clip(1, 8)
     os.makedirs(output_folder, exist_ok=True)
-    common_name  = os.path.basename(input_folder).lower()
-    nodes_name   = os.path.join(output_folder, f"{common_name}.nod.xml")
-    edges_name   = os.path.join(output_folder, f"{common_name}.edg.xml")
-    net_name     = os.path.join(output_folder, f"{common_name}.net.xml")
-    trips_name   = os.path.join(output_folder, f"{common_name}.rou.xml")
-    routed_name  = os.path.join(output_folder, f"{common_name}.routed.rou.xml")
-    cfg_name     = os.path.join(output_folder, f"{common_name}.sumocfg")
-
-    # 3) write nodes & edges (write_sumo_edges will read edges['lanes'])
-    write_sumo_nodes(nodes, nodes_name)
-    write_sumo_edges(edges, edges_name)
-
-    # 4) build the SUMO network
-    generate_net_xml(nodes_name, edges_name, net_name)
-
-    # 5) write a <routes> file of <flow> entries that reference valid edge IDs
-    write_sumo_xml_plain(trips, origin_map, dest_map, trips_name)
-
-    # 6) invoke DUAROUTER to turn those flows into edge‐based <vehicle> routes
+    base = os.path.basename(input_folder).lower()
+    nodes_file = os.path.join(output_folder, f"{base}.nod.xml")
+    edges_file = os.path.join(output_folder, f"{base}.edg.xml")
+    net_file   = os.path.join(output_folder, f"{base}.net.xml")
+    trips_file = os.path.join(output_folder, f"{base}.rou.xml")
+    routed_file= os.path.join(output_folder, f"{base}.routed.rou.xml")
+    cfg_file   = os.path.join(output_folder, f"{base}.sumocfg")
+    write_sumo_nodes(nodes, nodes_file)
+    write_sumo_edges(edges, edges_file)
+    generate_net_xml(nodes_file, edges_file, net_file)
+    origin_map = {int(r['init_node']): f"{int(r['init_node'])}_{int(r['term_node'])}" for _, r in edges.iterrows()}
+    dest_map   = {int(r['term_node']): f"{int(r['init_node'])}_{int(r['term_node'])}" for _, r in edges.iterrows()}
+    write_sumo_xml_plain(trips, origin_map, dest_map, trips_file)
     subprocess.run([
-        "duarouter",
-        "--net-file",     net_name,
-        "--route-files",  trips_name,
-        "--output-file",  routed_name,
-        "--ignore-errors"
+        'duarouter',
+        '--net-file', net_file,
+        '--route-files', trips_file,
+        '--output-file', routed_file,
+        '--ignore-errors'
     ], check=True)
-
-    # 7) generate a sumocfg pointing at your routed file
-    create_sumo_config(net_name, routed_name, cfg_name)
-
-    # 8) (optional) launch SUMO‐GUI automatically
-    subprocess.run([
-        "sumo-gui", "-c", cfg_name
-    ], check=True)
+    create_sumo_config(net_file, routed_file, cfg_file)
+    subprocess.run(['sumo-gui', '-c', cfg_file], check=True)
