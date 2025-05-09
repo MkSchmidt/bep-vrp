@@ -11,37 +11,43 @@ else:
     sys.exit("Please declare environment variable 'SUMO_HOME'")
 
 # Set up the SUMO configuration path
-sumo_cfg_path = os.path.join("C:\\Users", "Lennard Holwerda", "bep-vrp", "output", "siouxfalls.sumocfg")
+sumo_cfg_path = os.path.join("C:\\Users", "Lennard Holwerda", "bep-vrp", "output", "anaheim.sumocfg")
 Sumo_config = [
     'sumo-gui',
-    '-c', sumo_cfg_path,
-]
+    '-c', sumo_cfg_path
+    ]
 
 # Start the simulation
 traci.start(Sumo_config)
 
 # Define the output file path once
-output_file = os.path.join("C:\\Users", "Lennard Holwerda", "bep-vrp", "output", "edge_data_last_step.csv")
+output_file = os.path.join("C:\\Users", "Lennard Holwerda", "bep-vrp", "output", "edge_data_every_10_steps.csv")
+
+# Initialize a step counter
+step_counter = 0
 
 # Simulation loop
 while traci.simulation.getMinExpectedNumber() > 0:
     traci.simulationStep()
+    step_counter += 1
 
-    # Get the current simulation time in seconds
-    current_time = traci.simulation.getTime()
+    # Collect and write data every 10 timesteps
+    if step_counter % 10 == 0:
+        # Get the current simulation time in seconds
+        current_time = traci.simulation.getTime()
 
-    # Collect edge data for the current timestep
-    edge_data = []
-    for edge_id in traci.edge.getIDList():
-        mean_speed = round(traci.edge.getLastStepMeanSpeed(edge_id), 1)
-        vehicle_count = traci.edge.getLastStepVehicleNumber(edge_id)
-        edge_data.append([current_time, edge_id, mean_speed, vehicle_count])
+        # Collect edge data for the current timestep
+        edge_data = []
+        for edge_id in traci.edge.getIDList():
+            mean_speed = round(traci.edge.getLastStepMeanSpeed(edge_id), 1)
+            vehicle_count = traci.edge.getLastStepVehicleNumber(edge_id)
+            edge_data.append([current_time, edge_id, mean_speed, vehicle_count])
 
-    # Overwrite the CSV file at each timestep
-    with open(output_file, mode='w', newline='') as file:
-        writer = csv.writer(file, delimiter='\t')
-        writer.writerow(["Time_s", "Edge_ID", "Mean_Speed_m/s", "Vehicle_Count"])
-        writer.writerows(edge_data)
+        # Overwrite the CSV file
+        with open(output_file, mode='w', newline='') as file:
+            writer = csv.writer(file, delimiter='\t')
+            writer.writerow(["Time_s", "Edge_ID", "Mean_Speed_m/s", "Vehicle_Count"])
+            writer.writerows(edge_data)
 
 # Close the connection with the simulation
 traci.close()
