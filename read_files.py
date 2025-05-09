@@ -115,8 +115,8 @@ def load_tripsfile(file_path):
 
 def read_folder(folder_path):
     files = os.listdir(folder_path)
-    edgefiles = list(filter(lambda name: re.match(r"(?i).*_net\.tntp$", name), files))
-    assert len(edgefiles) > 0, "TNTP voor het net moet bestaan"
+    edgefiles = [f for f in files if f.lower().endswith('net.tntp')]
+    assert edgefiles, "TNTP voor het net moet bestaan"
     edge_path = os.path.join(folder_path, edgefiles[0])
     edges = load_edgefile(edge_path)
     

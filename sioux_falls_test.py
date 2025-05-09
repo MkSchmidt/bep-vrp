@@ -3,6 +3,6 @@ import os
 
 if __name__ == "__main__":
     project_root = os.path.dirname(__file__)
-    input_folder = os.path.join(project_root, "TransportationNetworks", "SiouxFalls")
+    input_folder = os.path.join(project_root, "TransportationNetworks", "Chicago-Sketch")
     output_folder= os.path.join(project_root, "output")
     convert_folder(input_folder, output_folder)
