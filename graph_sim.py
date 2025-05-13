@@ -40,14 +40,20 @@ def to_dense_graph(graph: nx.DiGraph) -> nx.DiGraph:
 # give current time as minutes since midnight
 def get_added_travel_time(edge, t):
     t_tc = ((t % (24*60)) - 18*60) # assume peak hour at 18:00
-    h = edge["volume"] / edge["capacity"] * edge["free_flow_time"]
+    h = edge["volume"] / edge["capacity"] * edge["free_flow_time"] * 2.5
     hump = h + min(-0.2*t_tc, h/90*t_tc)
 
     return max(0, hump)
 
 def get_travel_time(edge, t):
     added_time = get_added_travel_time(edge, t)
-    return edge["free_flow_time"]
+    return edge["free_flow_time"] + added_time
+
+def get_node_sequence(graph, end):
+    previous = graph.nodes[end]["previous"]
+    if previous is None:
+        return [end]
+    return get_node_sequence(graph, previous) + [end]
 
 def dynamic_dijkstra(graph, start, end, start_t):
     nx.set_node_attributes(graph, math.inf, "arrival_time")
@@ -65,7 +71,7 @@ def dynamic_dijkstra(graph, start, end, start_t):
                 minimum_distance = node_distance
                 minimum_distance_node = node_index
         if minimum_distance_node == end:
-            return graph
+            return get_node_sequence(graph, end)
         Q.remove(minimum_distance_node)
         t = graph.nodes[minimum_distance_node]["arrival_time"]
         for successor in graph.neighbors(minimum_distance_node):
@@ -74,8 +80,7 @@ def dynamic_dijkstra(graph, start, end, start_t):
             potential_time = minimum_distance + travel_time
             if potential_time < graph.nodes[successor]["arrival_time"]:
                 graph.nodes[successor]["arrival_time"] = potential_time
-                graph.nodes[successor]["previous"] = minimum_distance_node
-    
+                graph.nodes[successor]["previous"] = minimum_distance_node 
 
 if __name__ == "__main__":
     import os
@@ -95,18 +100,24 @@ if __name__ == "__main__":
         undirected.edges[flow_row["from"], flow_row["to"]]["volume"] = flow_row["volume"]
 
     node_positions = dict([ (i, undirected.nodes[i]["coordinates"]) for i in undirected.nodes ])
-    edges_to_draw = undirected.edges()
+    edges_to_draw = list(undirected.edges())
     
     fig, ax = plt.subplots()
     drawn_edges = nx.draw_networkx_edges(undirected, node_positions, edgelist=edges_to_draw, edge_color="0.8", ax=ax)
     title = plt.title("t=0")
     
+    route_start_t = 15.5*60
+    route = dynamic_dijkstra(undirected, 918, 911, route_start_t)
+    visited_nodes = set(route)
+
     def update_colors(frame):
-        t = 16*60 + (frame % (4*60))
+        t = 15.5*60 + (frame % (4*60))
+
         edge_times = [ get_added_travel_time(undirected.edges[edge], t) for edge in edges_to_draw ]
-        colors = [ str(max(0.08 * (10 - travel_time), 0)) for travel_time in edge_times ]
-        
-        title.set_text(f"t={t//60:02d}:{t%60:02d}")
+        tt_colors = [ str(max(0.08 * (10 - travel_time), 0)) for travel_time in edge_times ]
+        colors = [ "blue" if undirected.nodes[edges_to_draw[i][0]]["arrival_time"] <= t and len(visited_nodes & set(edges_to_draw[i])) == 2 else tt_colors[i] for i in range(len(edges_to_draw)) ]
+
+        title.set_text(f"t={int(t)//60:02d}:{int(t)%60:02d}")
         drawn_edges.set_color(colors)
 
         return [drawn_edges, title]
