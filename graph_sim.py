@@ -40,7 +40,7 @@ def to_dense_graph(graph: nx.DiGraph) -> nx.DiGraph:
 # give current time as minutes since midnight
 def get_added_travel_time(edge, t):
     t_tc = ((t % (24*60)) - 18*60) # assume peak hour at 18:00
-    h = edge["volume"] / edge["capacity"] * edge["free_flow_time"] * 2.5
+    h = edge["volume"] / edge["capacity"] * edge["free_flow_time"] * 3
     hump = h + min(-0.2*t_tc, h/90*t_tc)
 
     return max(0, hump)
@@ -80,7 +80,17 @@ def dynamic_dijkstra(graph, start, end, start_t):
             potential_time = minimum_distance + travel_time
             if potential_time < graph.nodes[successor]["arrival_time"]:
                 graph.nodes[successor]["arrival_time"] = potential_time
-                graph.nodes[successor]["previous"] = minimum_distance_node 
+                graph.nodes[successor]["previous"] = minimum_distance_node
+
+def arrival_times_for_path(graph, path, start_t):
+    edges = dict()
+    t = start_t
+    for od in pairwise(path):
+        edges[od] = t
+        edges[od[1], od[0]] = t
+        t += get_travel_time(graph.edges[od], t)
+
+    return edges
 
 if __name__ == "__main__":
     import os
@@ -105,22 +115,29 @@ if __name__ == "__main__":
     fig, ax = plt.subplots()
     drawn_edges = nx.draw_networkx_edges(undirected, node_positions, edgelist=edges_to_draw, edge_color="0.8", ax=ax)
     title = plt.title("t=0")
+    nx.draw_networkx_nodes(undirected, node_positions, nodelist=[911, 918])
     
     route_start_t = 15.5*60
     route = dynamic_dijkstra(undirected, 918, 911, route_start_t)
     visited_nodes = set(route)
+    
+    static_path = nx.shortest_path(undirected, source=918, target=911, weight="free_flow_time")
+    static_edges = arrival_times_for_path(undirected, static_path, route_start_t)
 
     def update_colors(frame):
         t = 15.5*60 + (frame % (4*60))
 
         edge_times = [ get_added_travel_time(undirected.edges[edge], t) for edge in edges_to_draw ]
-        tt_colors = [ str(max(0.08 * (10 - travel_time), 0)) for travel_time in edge_times ]
-        colors = [ "blue" if undirected.nodes[edges_to_draw[i][0]]["arrival_time"] <= t and len(visited_nodes & set(edges_to_draw[i])) == 2 else tt_colors[i] for i in range(len(edges_to_draw)) ]
+        tt_colors = [ str(max(0.8 / 15 * (15 - travel_time), 0)) for travel_time in edge_times ]
+        d_colors = [ "blue" if undirected.nodes[edges_to_draw[i][0]]["arrival_time"] <= t and len(visited_nodes & set(edges_to_draw[i])) == 2 else tt_colors[i] for i in range(len(edges_to_draw)) ]
+        
+        colors = [ "red" if edges_to_draw[i] in static_edges and static_edges[edges_to_draw[i]] <= t else d_colors[i] for i in range(len(d_colors)) ]
 
         title.set_text(f"t={int(t)//60:02d}:{int(t)%60:02d}")
         drawn_edges.set_color(colors)
 
         return [drawn_edges, title]
 
-    anim = animation.FuncAnimation(fig=fig, func=update_colors, frames=3*60, interval=40)
+    anim = animation.FuncAnimation(fig=fig, func=update_colors, frames=range(0, 4*60, 10), interval=200)
+    
     plt.show()
