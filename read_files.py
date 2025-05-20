@@ -63,6 +63,13 @@ def load_tripsfile(file_path):
                         trips.append((origin, dest, int(val)))
     return trips
 
+def load_flowfile(file_path):
+    df = pd.read_csv(file_path, sep=r"\s+")
+    
+    trimmed = [s.strip().lower() for s in df.columns]
+    df.columns = trimmed
+    return df
+
 def read_folder(folder_path):
     files = os.listdir(folder_path)
     edgefiles = list(filter(lambda name: re.match(r"(?i).*_net\.tntp$", name), files))
