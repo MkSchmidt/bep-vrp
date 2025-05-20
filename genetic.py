@@ -1,5 +1,6 @@
 import random
 import networkx as nx
+from typing import Self
 from graph_sim import get_route_cost
 
 type Node = int             # Nodes represented as ints
@@ -8,7 +9,8 @@ type Route = list[int]      # Routes represented as list of nodes, not including
 class GeneticAlgorithm:
     def __init__(self, dense_graph, depot: Node, capacity: int = 10):
         self.max_generations = 1000
-        population_size = 30
+        population_size = 100
+        self.pick_proportion = 0.2
         self.k: int = 3
 
         self.depot: Node = depot
@@ -22,11 +24,20 @@ class GeneticAlgorithm:
         delimited_route = solution.as_delimited(delimiter=self.depot)
         return get_route_cost(self.dense_graph, delimited_route)
 
+    def evolve(self):
+        ## TODO:
+        #  Select a proportion of the population by fitness, using random selection
+        #  weighted by the fitness of each individual's solution.
+        #  Apply the operators to this subset of the population.
+        #  Update the population with the results.
+        pass
+
 class Individual:
     def __init__(self, customers: set[Node], capacity: int):
         self.crossover_rate = random.choice([0.2, 0.4, 0.6, 0.8])
         self.mutation_rate = random.choice([0.3, 0.5, 0.7, 0.9])
-
+        
+        # Operators to be applied to the solutions
         self.crossover_op = random.choice([
             order_based_crossover, route_based_crossover, swap_based_crossover
         ])
@@ -45,6 +56,22 @@ class Individual:
             routes.append(route)
             remaining_customers = remaining_customers ^ set(route)
         self.solution = Solution.from_routes(routes)
+
+    def apply_solution_operators(self, other_solution: Solution):
+        ## TODO: apply the crossover, mutation and improvement ops to the solution
+        #  combined with the other_solution.
+        pass
+
+    def apply_parameter_operators(self):
+        ## TODO: use the mutation operator to generate new values for crossover_rate and
+        #  mutation_rate
+        pass
+
+    def apply_operator_operators(self, other: Individual):
+        ## TODO: apply crossover and mutation to the operators of this individual. Mutation
+        #  entails selecting a random operator for one of the steps, and crossover means
+        #  mixing this individual's operators with the other individual's.
+        pass
     
 class Solution:
     def from_routes(routes):
@@ -79,6 +106,39 @@ class Solution:
         for route in self.routes:
             result = result + route + [delimiter]
         return result
+    
+    def check_validity(self, nodes=None, capacity=None) -> bool:
+        list1 = self.as_delimited(delimiter="DEPOT")
+        set1 = set(list1)
+        if nodes is not None:
+            missing_elements = set(nodes) ^ set1 ^ {"DEPOT",}
+            if len(missing_elements) > 0:
+                return False
+
+        if len(set1) < len(list1) - len(self.as_routes):
+            return False
+
+        if capacity is not None:
+            for route in self.as_routes():
+                if len(route) > capacity:
+                    return False
+
+        return True
+
+    def to_valid(self, nodes: list[Node]) -> Self:
+        ## TODO: deal with capacity constraints.
+        list1 = self.as_delimited(delimiter="DEPOT")
+        missing_elements = set(nodes) ^ set(list1) ^ {"DEPOT",}
+        missing_element_iter = iter(missing_elements)
+        
+        new_list = []
+        for node in list1:
+            if node in new_list and node != "DEPOT":
+                new_list.append(next(missing_element_iter))
+            else:
+                new_list.append(node)
+
+        return Solution.from_delimited(new_list, delimiter="DEPOT")
 
 ## Cross-over operators
 def order_based_crossover(solution1, solution2) -> Solution:
@@ -135,20 +195,6 @@ def double_move_improvement(solution: Solution) -> Solution:
     ## TODO: select two customers and move to a different route. Keep new solution if better.
     pass
 
-def make_solution_feasible(solution, nodes) -> Solution:
-    ## TODO: deal with capacity constraints.
-    list1 = solution.as_delimited(delimiter="DEPOT")
-    missing_elements = set(nodes) ^ set(list1) ^ {"DEPOT",}
-    missing_element_iter = iter(missing_elements)
-    
-    new_list = []
-    for node in list1:
-        if node in new_list and node != "DEPOT":
-            new_list.append(next(missing_element_iter))
-        else:
-            new_list.append(node)
-
-    return Solution.from_delimited(new_list, delimiter="DEPOT")
 
 
 if __name__ == "__main__":
