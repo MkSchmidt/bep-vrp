@@ -4,7 +4,7 @@ from typing import Optional
 
 customers = [918, 911, 500, 400 , 300, 600] #Assign Customer location
 depot = [10] #Assign Depot Location
-
+demand_value = [5]
 
 # Read Files
 def graph_from_data(edges: pd.DataFrame, nodes: Optional[pd.DataFrame] = None) -> nx.DiGraph:
@@ -47,6 +47,16 @@ def get_added_travel_time(edge_attributes, t):
 def get_travel_time(edge_attributes, t):
     added_time = get_added_travel_time(edge_attributes, t)
     return edge_attributes.get("free_flow_time", 0) + added_time
+
+# Assign a demand to Customers
+
+def assign_customer_demands(customers,demand_value):
+    demands = {}
+    for customer in customers:
+        demands[customer] = demand_value
+    
+    return demands
+
 
 if __name__ == "__main__":
     import os
