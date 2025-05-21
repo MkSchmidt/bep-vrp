@@ -1,206 +1,211 @@
+from __future__ import annotations
 import random
 import networkx as nx
 from typing import Self
-from graph_sim import get_route_cost
+#from graph_sim import get_route_cost
 
-type Node = int             # Nodes represented as ints
-type Route = list[int]      # Routes represented as list of nodes, not including depot
+get_route_cost = lambda x, y: 1.
 
-class GeneticAlgorithm:
-    def __init__(self, dense_graph, depot: Node, capacity: int = 10):
-        self.max_generations = 1000
-        population_size = 100
-        self.pick_proportion = 0.2
-        self.k: int = 3
+Node = int          # All nodes represented as ints
+# A route is a list of customers visited, and it is implied that the
+# first and last stop is the depot. The depot node is left out of the list
+Route = list[Node]
 
-        self.depot: Node = depot
+class CVRP:
+    def __init__(self, dense_graph: nx.Graph, depot: Node, capacity: int):
         self.dense_graph = dense_graph
-        self.customers: set[Node] = set(dense_graph.nodes) ^ {depot,}
-        self.capacity: int = capacity
+        self.depot = depot
+        self.capacity = capacity
+        self.customers: set[Node] = set(dense_graph.nodes) ^ {depot}
 
-        self.population = [ Individual(self.customers, capacity) for i in range(population_size) ]
-    
-    def get_solution_cost(self, solution: Solution) -> float:
-        delimited_route = solution.as_delimited(delimiter=self.depot)
-        return get_route_cost(self.dense_graph, delimited_route)
-
-    def evolve(self):
-        ## TODO:
-        #  Select a proportion of the population by fitness, using random selection
-        #  weighted by the fitness of each individual's solution.
-        #  Apply the operators to this subset of the population.
-        #  Update the population with the results.
-        pass
-
-class Individual:
-    def __init__(self, customers: set[Node], capacity: int):
-        self.crossover_rate = random.choice([0.2, 0.4, 0.6, 0.8])
-        self.mutation_rate = random.choice([0.3, 0.5, 0.7, 0.9])
-        
-        # Operators to be applied to the solutions
-        self.crossover_op = random.choice([
-            order_based_crossover, route_based_crossover, swap_based_crossover
-        ])
-        self.mutation_op = random.choice([
-            random_remove_mutation, worst_remove_mutation, reverse_mutation
-        ])
-        self.improvement_op = random.choice([
-            swap_improvement, single_move_improvement, double_move_improvement
-        ])
-
-        remaining_customers = customers.copy()
-        routes: list[Route] = []
-        while len(remaining_customers) > 0:
-            route_length = min(capacity, len(remaining_customers))
-            route: Route = random.sample(list(remaining_customers), k=route_length)
-            routes.append(route)
-            remaining_customers = remaining_customers ^ set(route)
-        self.solution = Solution.from_routes(routes)
-
-    def apply_solution_operators(self, other_solution: Solution):
-        ## TODO: apply the crossover, mutation and improvement ops to the solution
-        #  combined with the other_solution.
-        pass
-
-    def apply_parameter_operators(self):
-        ## TODO: use the mutation operator to generate new values for crossover_rate and
-        #  mutation_rate
-        pass
-
-    def apply_operator_operators(self, other: Individual):
-        ## TODO: apply crossover and mutation to the operators of this individual. Mutation
-        #  entails selecting a random operator for one of the steps, and crossover means
-        #  mixing this individual's operators with the other individual's.
-        pass
-    
-class Solution:
-    def from_routes(routes):
-        solution = Solution()
-        solution.routes = routes
-        solution.delimiter = None
-        return solution
-
-    def from_delimited(nodes, delimiter):
-        solution = Solution()
-        solution.routes = []
-        solution.delimiter = delimiter
-        read_head = 0
-        while read_head < len(nodes):
-            route = []
-            while nodes[read_head] != delimiter:
-                route.append(nodes[read_head])
-                read_head += 1
-            read_head += 1
-            if len(route) > 0:
-                solution.routes.append(route)
-
-        return solution
-
-    def as_routes(self):
-        return self.routes
-
-    def as_delimited(self, delimiter=None):
-        delimiter = delimiter or self.delimiter
-        assert delimiter is not None, "Delimiter must be set"
-        result = [delimiter]
-        for route in self.routes:
-            result = result + route + [delimiter]
-        return result
-    
-    def check_validity(self, nodes=None, capacity=None) -> bool:
-        list1 = self.as_delimited(delimiter="DEPOT")
+    def check_solution_valid(self, solution: Solution) -> bool:
+        list1 = solution.as_delimited(depot=self.depot)
         set1 = set(list1)
-        if nodes is not None:
-            missing_elements = set(nodes) ^ set1 ^ {"DEPOT",}
-            if len(missing_elements) > 0:
-                return False
 
-        if len(set1) < len(list1) - len(self.as_routes):
+        # missing elements
+        missing_elements = set(self.customers) - set1
+        if missing_elements:
             return False
 
-        if capacity is not None:
-            for route in self.as_routes():
-                if len(route) > capacity:
-                    return False
+        # repeated elements
+        if len(set1) < len(list1) - len(solution.as_routes()):
+            return False
+
+        # capacity constraint
+        for route in solution.as_routes():
+            if len(route) > self.capacity or len(route) == 0:
+                return False
 
         return True
 
-    def to_valid(self, nodes: list[Node]) -> Self:
-        ## TODO: deal with capacity constraints.
-        list1 = self.as_delimited(delimiter="DEPOT")
-        missing_elements = set(nodes) ^ set(list1) ^ {"DEPOT",}
-        missing_element_iter = iter(missing_elements)
-        
-        new_list = []
-        for node in list1:
-            if node in new_list and node != "DEPOT":
-                new_list.append(next(missing_element_iter))
+    def make_solution_valid(self, solution: Solution) -> Solution:
+        list1 = solution.as_delimited(depot=self.depot)
+        customer_list = [node for node in list1 if node != self.depot]
+
+        seen: set[Node] = set()
+        duplicates: list[int] = []
+        fixed_list: list[Node] = []
+        for idx, node in enumerate(customer_list):
+            if node not in seen:
+                seen.add(node)
+                fixed_list.append(node)
             else:
-                new_list.append(node)
+                duplicates.append(idx)
 
-        return Solution.from_delimited(new_list, delimiter="DEPOT")
+        missing = list(self.customers - set(fixed_list))
 
-## Cross-over operators
-def order_based_crossover(solution1, solution2) -> Solution:
-    list1 = solution1.as_delimited(delimiter="DEPOT")
-    list2 = solution2.as_delimited(delimiter="DEPOT")
-    assert len(list1) == len(list2)
+        for i in range(min(len(missing), len(duplicates))):
+            fixed_list.insert(duplicates[i], missing[i])
 
-    start = random.randrange(len(list1)+1)
-    stop = random.randrange(start, len(list1)+1)
+        if len(missing) > len(duplicates):
+            fixed_list.extend(missing[len(duplicates):])
+
+        new_routes: list[Route] = []
+        current_route: Route = []
+        for node in fixed_list:
+            current_route.append(node)
+            if len(current_route) >= self.capacity:
+                new_routes.append(current_route)
+                current_route = []
+        if current_route:
+            new_routes.append(current_route)
+
+        return Solution.from_routes(new_routes)
+
+class GeneticAlgorithm:
+    def __init__(self, cvrp: CVRP):
+        self.max_generations: int = 1000
+        population_size: int = 100
+        self.pick_proportion: float = 0.2
+        self.k: int = 3
+
+        self.cvrp: CVRP = cvrp
+        self.population: list[Individual] = [Individual(cvrp) for _ in range(population_size)]
+
+    def get_solution_cost(self, solution: Solution) -> float:
+        delimited_route = solution.as_delimited(delimiter=self.cvrp.depot)
+        return get_route_cost(self.cvrp.dense_graph, delimited_route)
+
+    def evolve(self) -> None:
+        for _ in range(self.max_generations):
+            self.population.sort(key=lambda ind: self.get_solution_cost(ind.solution))
+            survivors = self.population[:int(self.pick_proportion * len(self.population))]
+            new_generation = survivors.copy()
+
+            while len(new_generation) < len(self.population):
+                parent1, parent2 = random.sample(survivors, 2)
+                offspring = Individual(self.cvrp)
+                offspring.solution = parent1.solution
+                offspring.apply_solution_operators(parent2.solution)
+                offspring.apply_parameter_operators()
+                offspring.apply_operator_operators(parent2)
+                new_generation.append(offspring)
+
+            self.population = new_generation
+
+class Individual:
+    def __init__(self, cvrp: CVRP):
+        self.cvrp: CVRP = cvrp
+
+        self.crossover_rate: float = random.choice([0.2, 0.4, 0.6, 0.8])
+        self.mutation_rate: float = random.choice([0.3, 0.5, 0.7, 0.9])
+
+        self.crossover_op = self.order_based_crossover
+        self.mutation_op = self.reverse_mutation
+        self.improvement_op = self.swap_improvement
+
+        remaining_customers = cvrp.customers.copy()
+        routes: list[Route] = []
+        while remaining_customers:
+            route_length = min(cvrp.capacity, len(remaining_customers))
+            route: Route = random.sample(list(remaining_customers), k=route_length)
+            routes.append(route)
+            remaining_customers -= set(route)
+        self.solution: Solution = Solution.from_routes(routes)
+
+    def apply_solution_operators(self, other_solution: Solution) -> None:
+        offspring = self.crossover_op(other_solution)
+        offspring = self.mutation_op(offspring)
+        offspring = self.improvement_op(offspring)
+        self.solution = offspring
+
+    def apply_parameter_operators(self) -> None:
+        self.crossover_rate *= random.uniform(0.9, 1.1)
+        self.mutation_rate *= random.uniform(0.9, 1.1)
+        self.crossover_rate = min(max(self.crossover_rate, 0.1), 1.0)
+        self.mutation_rate = min(max(self.mutation_rate, 0.1), 1.0)
+
+    def apply_operator_operators(self, other: Self) -> None:
+        if random.random() < 0.5:
+            self.crossover_op, other.crossover_op = other.crossover_op, self.crossover_op
+        if random.random() < 0.5:
+            self.mutation_op, other.mutation_op = other.mutation_op, self.mutation_op
+        if random.random() < 0.5:
+            self.improvement_op, other.improvement_op = other.improvement_op, self.improvement_op
+
+    def order_based_crossover(self, parent2: Solution) -> Solution:
+        list1 = self.solution.as_delimited(depot=self.cvrp.depot)
+        list2 = parent2.as_delimited(depot=self.cvrp.depot)
+        assert len(list1) == len(list2)
+        start = random.randrange(len(list1) + 1)
+        stop = random.randrange(start, len(list1) + 1)
+        combined_list = list1[0:start] + list2[start:stop] + list1[stop:]
+        return Solution.from_delimited(combined_list, self.cvrp.depot)
+
+    def reverse_mutation(self, solution: Solution) -> Solution:
+        routes = solution.as_routes()
+        if not routes:
+            return solution
+        route_idx = random.randint(0, len(routes) - 1)
+        route = routes[route_idx]
+        if len(route) < 2:
+            return solution
+        i, j = sorted(random.sample(range(len(route)), 2))
+        route[i:j + 1] = reversed(route[i:j + 1])
+        return Solution.from_routes(routes)
+
+    def swap_improvement(self, solution: Solution) -> Solution:
+        routes = solution.as_routes()
+        for route in routes:
+            if len(route) < 2:
+                continue
+            i, j = random.sample(range(len(route)), 2)
+            route[i], route[j] = route[j], route[i]
+        return Solution.from_routes(routes)
+
+class Solution:
+    @staticmethod
+    def from_routes(routes: list[Route]) -> Self:
+        solution = Solution()
+        solution.routes: list[Route] = routes
+        solution.depot: Node | None = None
+        return solution
     
-    combined_list = list1[0:start] + list2[start:stop] + list1[stop:]
+    @staticmethod
+    def from_delimited(nodes: list[Node], depot: Node) -> Self:
+        solution = Solution()
+        solution.routes = []
+        solution.depot = depot
+        read_head = 0
+        while read_head < len(nodes):
+            route: Route = []
+            while read_head < len(nodes) and nodes[read_head] != depot:
+                route.append(nodes[read_head])
+                read_head += 1
+            read_head += 1
+            if route:
+                solution.routes.append(route)
+        return solution
 
-    return Solution.from_delimited(combined_list, "DEPOT")
+    def as_routes(self) -> list[Route]:
+        return self.routes
 
-def route_based_crossover(solution1, solution2, k=3) -> Solution:
-    solution1_costs = [ get_route_cost(route) for route in solution1.as_routes() ]
-    solution2_costs = [ get_route_cost(route) for route in solution2.as_routes() ]
-    # TODO: select k fittest routes and add them to the next solution. The paper doesn't
-    # define fitness for a route though???? Only for a complete solution.
+    def as_delimited(self, depot: Node | None = None) -> list[Node]:
+        if depot is None:
+            depot = self.depot
+        assert depot is not None, "Depot (delimiter) must be set"
+        result: list[Node] = [depot]
+        for route in self.routes:
+            result += route + [depot]
+        return result
 
-def swap_based_crossover(solution1, solution2, k: int = 2) -> Solution:
-    ## TODO: Randomly select k routes from both solutions and swap the selected routes
-    #  between two solutions. Acoording to the paper you have to remove duplicate customers
-    #  and re-insert them into the best possible position??? Idk how you do that.
-    pass
-
-
-### Mutation operators
-def random_remove_mutation(solution: Solution, N: int = 3) -> Solution:
-    ## TODO: remove N customers at random and re-assign them to different positions
-    pass
-
-def worst_remove_mutation(solution: Solution, N: int = 3) -> Solution:
-    ## TODO: remove N customers with largest cost savings and reassign them to best cost
-    #  saving positions.
-    pass
-
-def reverse_mutation(solution: Solution) -> Solution:
-    ## TODO: select one route at random and shuffle customer orders.
-    pass
-
-
-### Improvement operators
-def swap_improvement(solution: Solution) -> Solution:
-    ## TODO: select two customers from 2 different routes and swap them. If the swap leads
-    #  to lower cost, keep the new solution.
-    pass
-
-def single_move_improvement(solution: Solution) -> Solution:
-    ## TODO: move a single customer to a different route. Keep new solution if it's better.
-    pass
-
-def double_move_improvement(solution: Solution) -> Solution:
-    ## TODO: select two customers and move to a different route. Keep new solution if better.
-    pass
-
-
-
-if __name__ == "__main__":
-    G = nx.DiGraph([(1,2), (2,1), (1, 3), (3, 1), (2, 3), (3, 2)])
-    alg = GeneticAlgorithm(G, 1)
-
-    sol1 = Solution.from_routes([[1, 2, 5], [3, 2, 3, 6]])
-
-    sol2 = make_solution_feasible(sol1, range(1, 8))
