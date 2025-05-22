@@ -55,6 +55,16 @@ def approximate_points(squared_distances, dimensions=None, iterations=10000, lr=
 
     return points, mse_history
 
+def reduce_dims(points, n=5):
+    output = torch.zeros((points.shape[0], n), dtype=torch.complex64)
+    working_array = points
+    for i in range(n):
+        direction = torch.linalg.vector_norm(torch.var(torch.abs(points), dim=0))
+        output[:,i] = torch.sum(direction * working_array, dim=1)
+        working_array -= direction * torch.sum(direction * working_array, dim=1, keepdim=True)
+    return output
+
+
 if __name__ == "__main__":
     NUM_VERTICES = 100
 
@@ -62,12 +72,14 @@ if __name__ == "__main__":
     squared_distances = torch.abs(squared_distances - squared_distances.T)
     
     analytical_points = place_points(squared_distances)
+    
+    reduced_points = reduce_dims(analytical_points, n=4)
 
     random_points = torch.rand((NUM_VERTICES, NUM_VERTICES), dtype=torch.complex64)
     
-    approx_points, mse_history = approximate_points(squared_distances, iterations=30000, lr=1e-5, dimensions = 2)
+    approx_points, mse_history = approximate_points(squared_distances, iterations=3000, lr=1e-5, dimensions = 4)
 
-    print(f"Analytical loss: {mse_absolute(analytical_points, squared_distances)}, approximation_loss: {mse_absolute(approx_points, squared_distances)}, random loss: {mse_absolute(random_points, squared_distances)}")
+    print(f"Analytical loss: {mse_absolute(analytical_points, squared_distances)}, reduction loss: {mse_absolute(reduced_points, squared_distances)}, approximation_loss: {mse_absolute(approx_points, squared_distances)}, random loss: {mse_absolute(random_points, squared_distances)}")
 
     from matplotlib import pyplot as plt
 
