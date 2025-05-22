@@ -8,7 +8,7 @@ from matplotlib import animation
 
 # --- Parameters & Profiles ---
 customers = [918, 911, 500, 400, 300, 600]
-deport = [10]
+deport = [1, 547]
 demand_value = 5
 
 # Time-breakpoints in minutes since midnight
@@ -19,7 +19,7 @@ def demand(t: float) -> float:
     """
     Piecewise demand profile over the day.
     """
-    low, medium, high = 0.1, 2, 5
+    low, medium, high = 0.1, 0.5, 5
     if t <= t1:
         return low
     elif t < t2:
@@ -54,61 +54,46 @@ def graph_from_data(edges: pd.DataFrame, nodes: Optional[pd.DataFrame] = None) -
         G.add_edge(row["init_node"], row["term_node"], **row)
     return G
 
-'''
-# --- Demand Application ---
-def apply_demand(df: pd.DataFrame, times: range) -> dict[int, pd.DataFrame]:
-    """
-    Multiply each edge's volume by demand(t) for each time t.
-    Returns a mapping {t: df_mod}.
-    """
-    results = {}
-    for t in times:
-        m = demand(t)
-        df_mod = df.copy()
-        df_mod['adjusted_volume'] = df_mod['volume'] * m
-        results[t] = df_mod
-    return results
-'''
-
 # --- Congestion Model Based on Demand ---
-def get_congestion_time(attrs: dict, t_min: float) -> float:
-    """
-    Compute congestion delay as edge volume multiplied by demand at time t.
-    """
+def get_flow(attrs: dict, t_min: float) -> float:
     volume = attrs.get("volume")
-    return volume * demand(t_min) *0.001
-
-
-def get_travel_time(attrs: dict, t_min: float) -> float:
-    """
-    Total travel time: free-flow time plus congestion delay.
-    """
-    free_time = attrs.get("free_flow_time")
-    return free_time + get_congestion_time(attrs, t_min)
+    return volume * demand(t_min)
 
 # Determine Critical Density for each edge
-
 def get_critical_density(attrs: dict):
     capacity = attrs.get("capacity")
     free_time = attrs.get("free_flow_time")
-    return capacity / free_time
-
+    free_time = 5 if free_time == 0 else free_time
+    length = attrs.get("length")
+    ff_speed = length / free_time
+    return capacity / ff_speed #klopt dit??
 '''
-# Density bepalen
-def density():
-    pc = qc / uf # crit_density = max_flow / freeflowtime
-    pj = # ???? hoe bereken/bepaal je dit ???
-    w = qc / (pj - pc) # Congestion speed  
- 
-    if density =< crit_density:
-        density = flow / freeflowtime
-    else density > crit_density:
-            density = flow / congestion speed
-    return 
-
-
+# Determine Density
+def get_density(attrs: dict):
+    length = attrs.get("length")
+    capacity = attrs.get("capacity")
+    density = capacity / length
+    return density 
 '''
+# Determine Congestion speed 
+def congestion_speed(attrs: dict):
+    capacity  = attrs.get("capacity")
+    length = attrs.get("length")
+    pc = get_critical_density(attrs) 
+    pj = 5 * pc # ???? hoe bereken/bepaal je dit ???
+    w = capacity / (pj - pc) # Congestion speed
+    return w
 
+# Travel time bepalen
+def get_travel_time(attrs: dict, t_min):
+    freetime = attrs.get("free_flow_time")
+    capacity  = attrs.get("capacity")
+    flow = get_flow(attrs, t_min)
+    if flow <= capacity:
+        travel_time = freetime
+    else:
+        travel_time = freetime + flow / 1500    #length / w
+    return travel_time
 
 # --- Main & Animation ---
 if __name__ == "__main__":
@@ -153,8 +138,8 @@ if __name__ == "__main__":
         # Update edge colors
         colors = []
         for u, v in edges:
-            delay = get_congestion_time(G_und.edges[u,v], t_sim)
-            val = max(0.0, 0.8 - (delay/15)*0.8)
+            delay = get_flow(G_und.edges[u,v], t_sim)
+            val = max(0.0, 0.8 - (delay/1000)*0.8)
             colors.append(str(val))
         drawn.set_color(colors)
         # Update title with clock time
@@ -189,12 +174,16 @@ if __name__ == "__main__":
     plt.tight_layout()
     plt.show()
 
-if G_und.has_edge(909, 517): # Make sure the edge exists
-    example_edge_attributes = G_und.edges[909, 517] #388,390
-    example_time = 0*60.0
-    congestion_time_result = get_congestion_time(example_edge_attributes, example_time)
+if G_und.has_edge(388, 390): # Make sure the edge exists
+    example_edge_attributes = G_und.edges[388, 390] #388,390
+    example_time = t2
+    flow_result = get_flow(example_edge_attributes, example_time)
     critcal_density_result = get_critical_density(example_edge_attributes)
-    print(f"Congestion time for edge (388, 390) at t={example_time}: {congestion_time_result}")
-    print(f"Critical density for edge (388, 390) = {critcal_density_result}")
+    travel_time_result =  get_travel_time(example_edge_attributes, example_time)
+    congestion_speed_result = congestion_speed(example_edge_attributes)
+    print(f"Flow for edge (388, 390) at t={example_time}: {flow_result} [veh/h]")
+    print(f"Travel time for edge (388, 390) at t={example_time}:{travel_time_result} [min]")
+    print(f"Critical density for edge (388, 390) = {critcal_density_result} [veh/km]")
+    print(f"Congestion Speed for edge (388, 390) = {congestion_speed_result} [m/s]")
 else:
     print("Edge (388,390) not found for testing get_travel_time")
