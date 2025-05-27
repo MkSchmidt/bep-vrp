@@ -9,11 +9,10 @@ from sumolib import net as sumonet
 # 1) ARG PARSING — depot + customers only
 def parse_args():
     p = argparse.ArgumentParser()
-    p.add_argument("--cfg", default='BEP-VRP/output/anaheim.sumocfg',      required=True, help="SUMO .sumocfg (with NPC routes)")
+    p.add_argument("--cfg", default='BEP-VRP/output/anaheim.sumocfg', required=True, help="SUMO .sumocfg (with NPC routes)")
     p.add_argument("--depot",     required=True, help="Depot node ID")
-    p.add_argument("--customers", required=True, nargs="+",
-                   help="Customer node IDs (space separated)")
-    p.add_argument("--net", default="BEP-VRP/TransportationNetworks/Anaheim_net", required=True)
+    p.add_argument("--customers", required=True, nargs="+", help="Customer node IDs (space separated)")
+    p.add_argument("--net", default="BEP-VRP/output/anaheim_net.xml", required=True)
     return p.parse_args()
 
 # 2) BUILD A NETWORKX GRAPH ON THE FLY FROM TraCI
@@ -24,11 +23,14 @@ def build_graph(netfile):
     for edge in snet.getEdges():
         u = edge.getFromNode().getID()
         v = edge.getToNode().getID()
-        fft = edge.getLength() / edge.getSpeed()
+        length = edge.getLength()          # in meters
+        speed  = edge.getSpeed()           # in m/s
+        fft    = length / speed            # free‐flow travel‐time in s
+
         G.add_edge(u, v,
                    sumo_edge=edge.getID(),
-                   free_flow_time=fft)
-    return G
+                   free_flow_time=fft,
+                   length=length)  
 
 # 3) TIME‐DEPENDENT TRAVEL‐TIME FUNCTION via TraCI
 def td_travel_time(u, v, depart_t, G):
@@ -51,7 +53,7 @@ def td_travel_time(u, v, depart_t, G):
             edge_id = G[x][y]["sumo_edge"]
             # last‐step mean speed (m/s). if zero, fallback to 0.1 m/s
             speed = traci.edge.getLastStepMeanSpeed(edge_id) or 0.1
-            length = traci.edge.getLength(edge_id)
+            length = G[x][y]['length']
             cost   = length / speed
             alt    = tx + cost
             if alt < dist[y]:
