@@ -57,13 +57,17 @@ def approximate_points(squared_distances, dimensions=None, iterations=10000, lr=
 
 def reduce_dims(points, n=5):
     output = torch.zeros((points.shape[0], n), dtype=torch.complex64)
-    working_array = points
+    average_point = torch.mean(points, dim=0, keepdim=True)
+    working_array = points - average_point
     for i in range(n):
-        direction = torch.linalg.vector_norm(torch.var(torch.abs(points), dim=0))
-        output[:,i] = torch.sum(direction * working_array, dim=1)
-        working_array -= direction * torch.sum(direction * working_array, dim=1, keepdim=True)
+        real_variance = torch.var(working_array.real, dim=0)
+        imag_variance = torch.var(working_array.imag, dim=0)
+        unit, variance = (1., real_variance) if real_variance.norm() > imag_variance.norm() else (1j, imag_variance)
+        direction = variance / variance.norm()
+        component = direction * working_array
+        output[:,i] = torch.norm(component, dim=1) * unit
+        working_array -= component * unit
     return output
-
 
 if __name__ == "__main__":
     NUM_VERTICES = 100
@@ -77,9 +81,9 @@ if __name__ == "__main__":
 
     random_points = torch.rand((NUM_VERTICES, NUM_VERTICES), dtype=torch.complex64)
     
-    approx_points, mse_history = approximate_points(squared_distances, iterations=3000, lr=1e-5, dimensions = 4)
+    approx_points, mse_history = approximate_points(squared_distances, iterations=5000, lr=1e-4, dimensions = 4)
 
-    print(f"Analytical loss: {mse_absolute(analytical_points, squared_distances)}, reduction loss: {mse_absolute(reduced_points, squared_distances)}, approximation_loss: {mse_absolute(approx_points, squared_distances)}, random loss: {mse_absolute(random_points, squared_distances)}")
+    print(f"Analytical loss: {mse_absolute(analytical_points, squared_distances)}, reduced loss: {mse_absolute(reduced_points, squared_distances)}, approximation_loss: {mse_absolute(approx_points, squared_distances)}, random loss: {mse_absolute(random_points, squared_distances)}")
 
     from matplotlib import pyplot as plt
 
