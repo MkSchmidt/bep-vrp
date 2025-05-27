@@ -10,6 +10,7 @@ from matplotlib import animation
 customers = [918,782,  911, 500, 400, 300, 600]
 deport = [1, 547]
 demand_value = 5
+edge_example = 918,782 #388,390
 
 # Time-breakpoints in minutes since midnight
 t1, t2, t3, t4 = 6.5*60, 8.5*60, 10*60, 12*60
@@ -66,14 +67,16 @@ def get_critical_density(attrs: dict):
     length = attrs.get("length")
     ff_speed = length / free_time
     return capacity / ff_speed #klopt dit??
-'''
+
 # Determine Density
+'''
 def get_density(attrs: dict):
     length = attrs.get("length")
     capacity = attrs.get("capacity")
     density = capacity / length
     return density 
 '''
+
 # Determine Congestion speed 
 def congestion_speed(attrs: dict):
     capacity  = attrs.get("capacity")
@@ -82,6 +85,12 @@ def congestion_speed(attrs: dict):
     pj = 5 * pc # ???? hoe bereken/bepaal je dit ???
     w = capacity / (pj - pc) # Congestion speed
     return w
+
+
+# Needed foir Visualization
+def congestion_time(attrs: dict, t_min):
+    flow = get_flow(attrs, t_min)
+    return flow / 1500
 
 # Travel time bepalen
 def get_travel_time(attrs: dict, t_min):
@@ -137,7 +146,7 @@ if __name__ == "__main__":
         # Update edge colors
         colors = []
         for u, v in edges:
-            delay = get_travel_time(G_und.edges[u,v], t_sim) #get_flow(G_und.edges[u,v], t_sim)
+            delay = congestion_time (G_und.edges[u,v], t_sim) #get_flow(G_und.edges[u,v], t_sim)
             val = max(0.0, 0.8 - (delay/ 10)*0.8)
             colors.append(str(val))
         drawn.set_color(colors)
@@ -173,7 +182,6 @@ if __name__ == "__main__":
     plt.tight_layout()
     plt.show()
 
-edge_example = 918,782 #388,390
 u, v = edge_example
 
 if G_und.has_edge(u,v): # Make sure the edge exists
