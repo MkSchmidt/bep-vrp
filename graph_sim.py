@@ -154,7 +154,7 @@ if __name__ == "__main__":
         pop_size=5,             # you can tune these
         n_clusters=1,
         ideas_per_cluster=1,
-        max_iter=10,
+        max_iter=20,
         remove_rate=0.2
     )
 

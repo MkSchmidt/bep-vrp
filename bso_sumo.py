@@ -6,6 +6,7 @@ from BsoLns_imp import BSOLNS
 from itertools import pairwise
 from sumolib import net as sumonet
 
+
 # 1) ARG PARSING — depot + customers only
 def parse_args():
     p = argparse.ArgumentParser()
@@ -31,14 +32,10 @@ def build_graph(netfile):
                    sumo_edge=edge.getID(),
                    free_flow_time=fft,
                    length=length)  
+    return G
 
 # 3) TIME‐DEPENDENT TRAVEL‐TIME FUNCTION via TraCI
 def td_travel_time(u, v, depart_t, G):
-    """
-    Run a tiny Dijkstra over G, but at each edge query 
-    the *current* speed via TraCI to get time‐dependent costs.
-    depart_t is in seconds.
-    """
     dist = {n: float("inf") for n in G}
     prev = {}
     dist[u] = depart_t
@@ -60,13 +57,16 @@ def td_travel_time(u, v, depart_t, G):
                 dist[y], prev[y] = alt, x
     return dist[v] - depart_t
 
+
+
 # 4) MAIN: start SUMO, build G, run BSOLNS, inject vehicle
 def main():
     args = parse_args()
     # launch SUMO with your existing .cfg (includes NPC traffic)
-    traci.start(["sumo", "-c", args.cfg, "--start", "--no-step-log"])
-    # build graph from the *running* sim
+    traci.start(["sumo-gui", "-c", args.cfg, "--start", "--no-step-log"])
     G = build_graph(args.net)
+    
+    assert G is not None and len(G) > 0, f"build_graph({args.net}) failed to load any edges!"
 
     # map depot+customers → BSOLNS indices
     depot     = args.depot
@@ -85,32 +85,38 @@ def main():
         travel_time_fn=travel_time_fn,
         demands=demands,
         vehicle_capacity=sum(demands),
-        start_time=0.0,     # sim seconds
+        start_time=30.0,     # sim seconds
         pop_size=20,
         n_clusters=2,
         ideas_per_cluster=2,
-        max_iter=50,
-        remove_rate=0.3
+        max_iter=10,
+        remove_rate=0.5
     )
     best = bso.run()
     print("Best dynamic cost:", best["cost"], "solution:", best["sol"])
 
     # 5) TRANSLATE BSOLNS ROUTE → SUMO EDGE LIST
-    sol      = best["sol"][0]               # e.g. [1,2,3,4,5]
-    hop_idxs  = [0] + sol + [0]             # include return to depot
+    sol       = best["sol"][0]               # e.g. [1,7,6,5,2,4,3,8]
+    hop_idxs  = [0] + sol + [0]              # include return to depot
     node_path = [bso_nodes[i] for i in hop_idxs]
 
     sumo_route = []
-    for a, b in pairwise(node_path):
-        # ask SUMO for its current shortest-edge route
-        edges = traci.simulation.findRoute(a, b).edges
-        sumo_route.extend(edges)
+    for u, v in pairwise(node_path):
+        # 1) find the node‐sequence of the static shortest‐path
+        subpath = nx.shortest_path(
+            G,
+            source=u,
+            target=v,
+            weight="free_flow_time"
+        )
+        # 2) walk each link in that path, grabbing its SUMO edge‐ID
+        for a, b in pairwise(subpath):
+            sumo_route.append(G[a][b]["sumo_edge"])
 
     # 6) INJECT YOUR BSO VEHICLE
     traci.route.add("bso_route", sumo_route)
-    traci.vehicle.add("bso_veh", routeID="bso_route", typeID="car")
+    traci.vehicle.add("bso_veh", routeID="bso_route", typeID='DEFAULT_VEHTYPE')
 
-    # 7) RUN UNTIL IT FINISHES (NPC traffic keeps going)
     while traci.simulation.getMinExpectedNumber() > 0:
         traci.simulationStep()
 
