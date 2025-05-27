@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from matplotlib import animation
 
 # --- Parameters & Profiles ---
-customers = [918, 911, 500, 400, 300, 600]
+customers = [918,782,  911, 500, 400, 300, 600]
 deport = [1, 547]
 demand_value = 5
 
@@ -15,10 +15,9 @@ demand_value = 5
 t1, t2, t3, t4 = 6.5*60, 8.5*60, 10*60, 12*60
 t5, t6, t7, t8 = 16.5*60, 18*60, 20*60, 22*60
 
+
+# Demand function
 def demand(t: float) -> float:
-    """
-    Piecewise demand profile over the day.
-    """
     low, medium, high = 0.1, 0.5, 5
     if t <= t1:
         return low
@@ -138,8 +137,8 @@ if __name__ == "__main__":
         # Update edge colors
         colors = []
         for u, v in edges:
-            delay = get_flow(G_und.edges[u,v], t_sim)
-            val = max(0.0, 0.8 - (delay/1000)*0.8)
+            delay = get_travel_time(G_und.edges[u,v], t_sim) #get_flow(G_und.edges[u,v], t_sim)
+            val = max(0.0, 0.8 - (delay/ 10)*0.8)
             colors.append(str(val))
         drawn.set_color(colors)
         # Update title with clock time
@@ -174,16 +173,19 @@ if __name__ == "__main__":
     plt.tight_layout()
     plt.show()
 
-if G_und.has_edge(388, 390): # Make sure the edge exists
-    example_edge_attributes = G_und.edges[388, 390] #388,390
+edge_example = 918,782 #388,390
+u, v = edge_example
+
+if G_und.has_edge(u,v): # Make sure the edge exists
+    example_edge_attributes = G_und.edges[u,v] 
     example_time = t2
     flow_result = get_flow(example_edge_attributes, example_time)
     critcal_density_result = get_critical_density(example_edge_attributes)
     travel_time_result =  get_travel_time(example_edge_attributes, example_time)
     congestion_speed_result = congestion_speed(example_edge_attributes)
-    print(f"Flow for edge (388, 390) at t={example_time}: {flow_result} [veh/h]")
-    print(f"Travel time for edge (388, 390) at t={example_time}:{travel_time_result} [min]")
-    print(f"Critical density for edge (388, 390) = {critcal_density_result} [veh/km]")
-    print(f"Congestion Speed for edge (388, 390) = {congestion_speed_result} [m/s]")
+    print(f"Flow for edge ({u}, {v}) at t={example_time}: {flow_result} [veh/h]")
+    print(f"Travel time for edge ({u}, {v}) at t={example_time}:{travel_time_result} [min]")
+    print(f"Critical density for edge ({u}, {v}) = {critcal_density_result} [veh/km]")
+    print(f"Congestion Speed for edge ({u}, {v}) = {congestion_speed_result} [m/s]")
 else:
-    print("Edge (388,390) not found for testing get_travel_time")
+    print("Edge ({u}, {v}) not found for testing get_travel_time")
