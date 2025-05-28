@@ -9,25 +9,26 @@ from matplotlib import pyplot as plt, animation
 from read_files import (
     load_edgefile, load_flowfile,
     load_nodefile, project_root)
-from BSOLNS_imp import BSOLNS 
+from BsoLns_imp import BSOLNS 
 
 # Define BSO-LNS Problem: Depot and Customers
 depot_node_id = 918 
-customer_node_ids = [911, 210, 350, 123, 456] # Example: 5 customers
+customer_node_ids = [911, 210, 350, 123, 456,300] #,300, 400, 500, 200, 100] # Example: 5 customers
 time_step_minutes = 10 #mins
 sim_start = 6 * 60 #6:00
 route_start_t = 12 * 60  #15:30
 vehicle_capacity = 50
+n_demand = 10 # Demand per customer
 
 # Time-breakpoints demand function
 t1, t2, t3, t4 = 6.5*60, 8.5*60, 10*60, 12*60
 t5, t6, t7, t8 = 16.5*60, 18*60, 20*60, 22*60
 
 # Parameters for BSO
-pop_size= 30           
+pop_size= 100           
 #n_clusters=max(1, min(5, num_bso_customers // 2 if num_bso_customers > 1 else 1)) 
-ideas_per_cluster = 5
-max_iter = 10            
+ideas_per_cluster = 10
+max_iter = 5            
 remove_rate=0.3
 
 # Demands for each customer (must match the order in customer_node_ids)
@@ -237,7 +238,7 @@ if __name__ == "__main__":
     # `bso_nodes` maps BSOLNS internal indices (0 for depot, 1..N for customers) to actual graph node IDs
     bso_nodes_map = [depot_node_id] + customer_node_ids 
     num_bso_customers = len(customer_node_ids)
-    customer_demands = [random.randint(5,15) for _ in range(num_bso_customers)]
+    customer_demands = [n_demand for _ in range(num_bso_customers)]
 
 
     # Title and timer text
@@ -326,7 +327,6 @@ if __name__ == "__main__":
                 bso_edges_for_animation.update(segment_edge_times)
                 route_start_t = undirected_graph.nodes[first_cust_actual_node_id]["arrival_time"]
                 current_leg_start_node_id = first_cust_actual_node_id
-                continue
 
             # Legs between customers in the current route
             for i in range(len(route_of_customer_indices) - 1):
@@ -339,7 +339,6 @@ if __name__ == "__main__":
                     bso_edges_for_animation.update(segment_edge_times)
                     route_start_t = undirected_graph.nodes[next_cust_actual_node_id]["arrival_time"]
                     current_leg_start_node_id = next_cust_actual_node_id
-                    break # Problem with this route, move to next route
             
             # Final Leg: Last customer in route back to Depot
             if path_segment_nodes: # Ensure previous leg was successful
@@ -415,7 +414,7 @@ if __name__ == "__main__":
     ani = animation.FuncAnimation(
         fig,
         update_frame,
-        frames=range(sim_start, 24*60, 15),
+        frames=range(sim_start,24*60, 15),
         interval=200,  # Milliseconds between frames
         blit=True)
     
