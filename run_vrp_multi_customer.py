@@ -25,9 +25,9 @@ t1, t2, t3, t4 = 6.5*60, 8.5*60, 10*60, 12*60
 t5, t6, t7, t8 = 16.5*60, 18*60, 20*60, 22*60
 
 # Parameters for BSO
-pop_size= 100           
+pop_size= 10           
 #n_clusters=max(1, min(5, num_bso_customers // 2 if num_bso_customers > 1 else 1)) 
-ideas_per_cluster = 10
+ideas_per_cluster = 5
 max_iter = 5            
 remove_rate=0.3
 

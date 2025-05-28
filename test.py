@@ -8,18 +8,20 @@ from matplotlib import animation
 
 # --- Parameters & Profiles ---
 customers = [918,782,  911, 500, 400, 300, 600]
-deport = [1, 547]
+depot = [1, 547]
 demand_value = 5
-edge_example = 918,782 #388,390
+edge_example = 392, 713 #388,390 #918,782 #
+B = 0.015 # is this correct parameter to use
+
 
 # Time-breakpoints in minutes since midnight
-t1, t2, t3, t4 = 6.5*60, 8.5*60, 10*60, 12*60
+t1, t2, t3, t4 = 4*60, 8.5*60, 10*60, 12*60
 t5, t6, t7, t8 = 16.5*60, 18*60, 20*60, 22*60
 
 
 # Demand function
 def demand(t: float) -> float:
-    low, medium, high = 0.1, 0.5, 5
+    low, medium, high = 0.1, 0.5, 1.1
     if t <= t1:
         return low
     elif t < t2:
@@ -86,21 +88,24 @@ def congestion_speed(attrs: dict):
     w = capacity / (pj - pc) # Congestion speed
     return w
 
-
 # Needed foir Visualization
-def congestion_time(attrs: dict, t_min):
+def congestion_time(attrs: dict, t_min, B):
     flow = get_flow(attrs, t_min)
-    return flow / 1500
+    capacity  = attrs.get("capacity")
+    if flow <= capacity:
+        return 0.001
+    else:
+        return(flow - capacity) * B
 
 # Travel time bepalen
-def get_travel_time(attrs: dict, t_min):
+def get_travel_time(attrs: dict, t_min, B):
     freetime = attrs.get("free_flow_time")
     capacity  = attrs.get("capacity")
     flow = get_flow(attrs, t_min)
     if flow <= capacity:
         travel_time = freetime
     else:
-        travel_time = freetime + flow / 1500    #length / w
+        travel_time = freetime + (flow - capacity) * B    #length / w
     return travel_time
 
 # --- Main & Animation ---
@@ -126,7 +131,7 @@ if __name__ == "__main__":
     fig, ax = plt.subplots(figsize=(10,8))
     nx.draw_networkx_nodes(G_und, pos, node_size=1, ax=ax, node_color='gray')
     nx.draw_networkx_nodes(G_dir, pos, nodelist=customers, node_size=20, ax=ax, node_color='blue')
-    nx.draw_networkx_nodes(G_dir, pos, nodelist=deport,    node_size=20, ax=ax, node_color='red')
+    nx.draw_networkx_nodes(G_dir, pos, nodelist=depot,    node_size=20, ax=ax, node_color='red')
     drawn = nx.draw_networkx_edges(G_und, pos, edgelist=edges, edge_color="0.8", ax=ax)
 
     # Title and timer text
@@ -146,7 +151,7 @@ if __name__ == "__main__":
         # Update edge colors
         colors = []
         for u, v in edges:
-            delay = congestion_time (G_und.edges[u,v], t_sim) #get_flow(G_und.edges[u,v], t_sim)
+            delay = congestion_time(G_und.edges[u,v], t_sim, B) #get_flow(G_und.edges[u,v], t_sim)
             val = max(0.0, 0.8 - (delay/ 10)*0.8)
             colors.append(str(val))
         drawn.set_color(colors)
@@ -170,7 +175,7 @@ if __name__ == "__main__":
     plt.xlabel("X coordinate"); plt.ylabel("Y coordinate")
     plt.tight_layout()
     plt.show()
-
+'''
     # Demand profile plot
     fig2, ax2 = plt.subplots()
     ax2.plot(list(t_values), demand_profile)
@@ -181,19 +186,38 @@ if __name__ == "__main__":
     )
     plt.tight_layout()
     plt.show()
-
+'''
 u, v = edge_example
 
-if G_und.has_edge(u,v): # Make sure the edge exists
-    example_edge_attributes = G_und.edges[u,v] 
-    example_time = t2
-    flow_result = get_flow(example_edge_attributes, example_time)
-    critcal_density_result = get_critical_density(example_edge_attributes)
-    travel_time_result =  get_travel_time(example_edge_attributes, example_time)
-    congestion_speed_result = congestion_speed(example_edge_attributes)
-    print(f"Flow for edge ({u}, {v}) at t={example_time}: {flow_result} [veh/h]")
-    print(f"Travel time for edge ({u}, {v}) at t={example_time}:{travel_time_result} [min]")
-    print(f"Critical density for edge ({u}, {v}) = {critcal_density_result} [veh/km]")
-    print(f"Congestion Speed for edge ({u}, {v}) = {congestion_speed_result} [m/s]")
-else:
-    print("Edge ({u}, {v}) not found for testing get_travel_time")
+# Tabel with sample times
+if G_und.has_edge(u, v):
+    edge_attrs = G_und.edges[u, v]
+    records = []
+
+    for t in [t1, t2, t3, t4, t5, t6, t7, t8]:
+        records.append({
+            "Time (min)": t,
+            "Flow (veh/h)": get_flow(edge_attrs, t),
+            "Critical Density (veh/km)": get_critical_density(edge_attrs),
+            "Travel Time (min)": get_travel_time(edge_attrs, t, B),
+            "Congestion Speed (m/s)": congestion_speed(edge_attrs),
+        })
+
+    df = pd.DataFrame(records)
+    print(df)
+
+# Travel time profile plot for example edge (u,v)
+if G_und.has_edge(u, v):
+    travel_time_profile = [get_travel_time(G_und.edges[u, v], t, B) for t in t_values]
+
+    fig3, ax3 = plt.subplots()
+    ax3.plot(t_values, travel_time_profile, label=f"Travel Time on edge ({u},{v})")
+    ax3.set(
+        xlabel='Minutes since midnight',
+        ylabel='Travel time [min]',
+        title=f'Travel Time over Day for edge ({u},{v})'
+    )
+    ax3.legend()
+    plt.tight_layout()
+    plt.show()
+
