@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 import argparse
 import traci
 import networkx as nx
@@ -6,8 +5,6 @@ from BsoLns_imp import BSOLNS
 from itertools import pairwise
 from sumolib import net as sumonet
 
-
-# 1) ARG PARSING — depot + customers only
 def parse_args():
     p = argparse.ArgumentParser()
     p.add_argument("--cfg", default='BEP-VRP/output/anaheim.sumocfg', required=True, help="SUMO .sumocfg (with NPC routes)")
@@ -16,17 +13,15 @@ def parse_args():
     p.add_argument("--net", default="BEP-VRP/output/anaheim_net.xml", required=True)
     return p.parse_args()
 
-# 2) BUILD A NETWORKX GRAPH ON THE FLY FROM TraCI
-
 def build_graph(netfile):
     snet = sumonet.readNet(netfile)
     G = nx.DiGraph()
     for edge in snet.getEdges():
         u = edge.getFromNode().getID()
         v = edge.getToNode().getID()
-        length = edge.getLength()          # in meters
-        speed  = edge.getSpeed()           # in m/s
-        fft    = length / speed            # free‐flow travel‐time in s
+        length = edge.getLength()
+        speed  = edge.getSpeed()
+        fft    = length / speed
 
         G.add_edge(u, v,
                    sumo_edge=edge.getID(),
@@ -34,7 +29,6 @@ def build_graph(netfile):
                    length=length)  
     return G
 
-# 3) TIME‐DEPENDENT TRAVEL‐TIME FUNCTION via TraCI
 def td_travel_time(u, v, depart_t, G):
     dist = {n: float("inf") for n in G}
     prev = {}
@@ -48,7 +42,6 @@ def td_travel_time(u, v, depart_t, G):
         tx = dist[x]
         for y in G.successors(x):
             edge_id = G[x][y]["sumo_edge"]
-            # last‐step mean speed (m/s). if zero, fallback to 0.1 m/s
             speed = traci.edge.getLastStepMeanSpeed(edge_id) or 0.1
             length = G[x][y]['length']
             cost   = length / speed
@@ -58,62 +51,52 @@ def td_travel_time(u, v, depart_t, G):
     return dist[v] - depart_t
 
 
-
-# 4) MAIN: start SUMO, build G, run BSOLNS, inject vehicle
 def main():
     args = parse_args()
-    # launch SUMO with your existing .cfg (includes NPC traffic)
     traci.start(["sumo-gui", "-c", args.cfg, "--start", "--no-step-log"])
     G = build_graph(args.net)
     
     assert G is not None and len(G) > 0, f"build_graph({args.net}) failed to load any edges!"
 
-    # map depot+customers → BSOLNS indices
     depot     = args.depot
     customers = args.customers
     bso_nodes = [depot] + customers
-    demands   = [1] * len(customers)  # unit demand per customer
+    demands   = [2] * len(customers)  
 
-    # wrap our TD oracle
     def travel_time_fn(u_idx, v_idx, t):
         u = bso_nodes[u_idx]
         v = bso_nodes[v_idx]
         return td_travel_time(u, v, t, G)
 
-    # instantiate & run BSO‐LNS for one-route VRP
     bso = BSOLNS(
         travel_time_fn=travel_time_fn,
         demands=demands,
-        vehicle_capacity=sum(demands),
-        start_time=30.0,     # sim seconds
+        vehicle_capacity= 0.5 * sum(demands),
+        start_time=0.0,     
         pop_size=20,
-        n_clusters=2,
-        ideas_per_cluster=2,
+        n_clusters=3,
+        ideas_per_cluster=1,
         max_iter=10,
         remove_rate=0.5
     )
     best = bso.run()
     print("Best dynamic cost:", best["cost"], "solution:", best["sol"])
 
-    # 5) TRANSLATE BSOLNS ROUTE → SUMO EDGE LIST
-    sol       = best["sol"][0]               # e.g. [1,7,6,5,2,4,3,8]
-    hop_idxs  = [0] + sol + [0]              # include return to depot
+    sol       = best["sol"][0]
+    hop_idxs  = [0] + sol + [0]
     node_path = [bso_nodes[i] for i in hop_idxs]
 
     sumo_route = []
     for u, v in pairwise(node_path):
-        # 1) find the node‐sequence of the static shortest‐path
         subpath = nx.shortest_path(
             G,
             source=u,
             target=v,
             weight="free_flow_time"
         )
-        # 2) walk each link in that path, grabbing its SUMO edge‐ID
         for a, b in pairwise(subpath):
             sumo_route.append(G[a][b]["sumo_edge"])
 
-    # 6) INJECT YOUR BSO VEHICLE
     traci.route.add("bso_route", sumo_route)
     traci.vehicle.add("bso_veh", routeID="bso_route", typeID='DEFAULT_VEHTYPE')
 

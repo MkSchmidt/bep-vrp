@@ -8,9 +8,9 @@ class BSOLNS:
                  demands,
                  vehicle_capacity,
                  start_time=0.0,
-                 pop_size=50,
-                 n_clusters=5,
-                 ideas_per_cluster=5,
+                 pop_size=20,
+                 n_clusters=2,
+                 ideas_per_cluster=2,
                  max_iter=100,
                  remove_rate=0.2):
         """
@@ -37,7 +37,6 @@ class BSOLNS:
         self.num_customers = len(demands)
 
     def evaluate(self, solution, start_time=None):
-        """Simulate a solution under time‐dependent travel times."""
         t = self.start_time if start_time is None else start_time
         for route in solution:
             prev = 0
@@ -48,7 +47,6 @@ class BSOLNS:
         return t - (self.start_time if start_time is None else start_time)
 
     def greedy_initial_solution(self, start_time=None):
-        """Build a first solution by repeatedly inserting the nearest feasible customer."""
         t0 = self.start_time if start_time is None else start_time
         unvisited = set(range(1, self.num_customers + 1))
         solution = []
