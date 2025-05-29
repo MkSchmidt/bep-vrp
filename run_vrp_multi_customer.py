@@ -13,7 +13,7 @@ from BsoLns_imp import BSOLNS
 
 # Define BSO-LNS Problem: Depot and Customers
 depot_node_id = 918 
-customer_node_ids = [911, 210, 350, 123, 456,300] #,300, 400, 500, 200, 100] # Example: 5 customers
+customer_node_ids = [911, 210, 350, 123, 456,300, 1] #,300, 400, 500, 200, 100] # Example: 5 customers
 time_step_minutes = 10 #mins
 sim_start = 6 * 60 #6:00
 route_start_t = 12 * 60  #15:30

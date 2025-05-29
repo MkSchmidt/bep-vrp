@@ -71,13 +71,13 @@ def get_critical_density(attrs: dict):
     return capacity / ff_speed #klopt dit??
 
 # Determine Density
-'''
+
 def get_density(attrs: dict):
     length = attrs.get("length")
     capacity = attrs.get("capacity")
     density = capacity / length
-    return density 
-'''
+    return density
+
 
 # Determine Congestion speed 
 def congestion_speed(attrs: dict):
@@ -100,12 +100,14 @@ def congestion_time(attrs: dict, t_min, B):
 # Travel time bepalen
 def get_travel_time(attrs: dict, t_min, B):
     freetime = attrs.get("free_flow_time")
+    crit_dens = get_critical_density(attrs)
     capacity  = attrs.get("capacity")
+    density = get_density(attrs)
     flow = get_flow(attrs, t_min)
-    if flow <= capacity:
+    if flow <= crit_dens:
         travel_time = freetime
     else:
-        travel_time = freetime + (flow - capacity) * B    #length / w
+        travel_time = freetime + (density - crit_dens) * B    #length / w
     return travel_time
 
 # --- Main & Animation ---
@@ -174,8 +176,8 @@ if __name__ == "__main__":
     ax.set_aspect('equal')
     plt.xlabel("X coordinate"); plt.ylabel("Y coordinate")
     plt.tight_layout()
-    plt.show()
-'''
+    plt.show(block=False)
+
     # Demand profile plot
     fig2, ax2 = plt.subplots()
     ax2.plot(list(t_values), demand_profile)
@@ -185,8 +187,8 @@ if __name__ == "__main__":
         title='Daily Demand'
     )
     plt.tight_layout()
-    plt.show()
-'''
+    plt.show(block=False)
+
 u, v = edge_example
 
 # Tabel with sample times
