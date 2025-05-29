@@ -6,6 +6,14 @@ from read_files import load_edgefile, load_flowfile, load_nodefile, project_root
 import matplotlib.pyplot as plt
 import json
 
+#-------EXPLANTION USE-------
+
+# IMPORTANT SIDE-NOTE ; ROWS AND COLUMNS GO FROM 0-9
+
+# 1. Search for the row and column of desired Node
+# 2. Search for color to indicate the range of the Nnumber of the node 
+# 3. Search in the nodes_grid.sjon file for desired node
+
 # Load grid-based node classification
 with open("nodes_grid.json", "r", encoding="utf-8") as f:
     categories = json.load(f)
@@ -75,9 +83,9 @@ if __name__ == "__main__":
     ax1.set_yticklabels([f"{y:.1f}" for y in y_lines], fontsize=8)
 
     # Color nodes by ID buckets
-    cmap = plt.colormaps['tab10']
+    cmap = plt.colormaps['tab20']
     max_node = max(G_dir.nodes()) if G_dir.nodes() else 0
-    buckets = [(i, min(i+99, max_node)) for i in range(1, max_node+1, 100)]
+    buckets = [(i, min(i+50, max_node)) for i in range(1, max_node+1, 50)]
     for idx, (start, end) in enumerate(buckets):
         nlist = [n for n in G_dir.nodes() if start <= n <= end]
         nx.draw_networkx_nodes(
