@@ -4,15 +4,8 @@ from typing import Optional
 import os
 from read_files import load_edgefile, load_flowfile, load_nodefile, project_root
 import matplotlib.pyplot as plt
+import mplcursors
 import json
-
-#-------EXPLANTION USE-------
-
-# IMPORTANT SIDE-NOTE ; ROWS AND COLUMNS GO FROM 0-9
-
-# 1. Search for the row and column of desired Node
-# 2. Search for color to indicate the range of the Nnumber of the node 
-# 3. Search in the nodes_grid.sjon file for desired node
 
 # Load grid-based node classification
 with open("nodes_grid.json", "r", encoding="utf-8") as f:
@@ -82,13 +75,13 @@ if __name__ == "__main__":
     ax1.set_xticklabels([f"{x:.1f}" for x in x_lines], rotation=45, fontsize=8)
     ax1.set_yticklabels([f"{y:.1f}" for y in y_lines], fontsize=8)
 
-    # Color nodes by ID buckets
-    cmap = plt.colormaps['tab20']
+    # Color nodes by ID buckets and add hover
+    cmap = plt.colormaps['tab10']
     max_node = max(G_dir.nodes()) if G_dir.nodes() else 0
-    buckets = [(i, min(i+50, max_node)) for i in range(1, max_node+1, 50)]
+    buckets = [(i, min(i+99, max_node)) for i in range(1, max_node+1, 100)]
     for idx, (start, end) in enumerate(buckets):
         nlist = [n for n in G_dir.nodes() if start <= n <= end]
-        nx.draw_networkx_nodes(
+        sc = nx.draw_networkx_nodes(
             G_und, pos,
             nodelist=nlist,
             node_size=20,
@@ -96,14 +89,19 @@ if __name__ == "__main__":
             ax=ax1,
             label=f"{start}-{end}"
         )
+        # Attach hover tooltip for this bucket
+        mplcursors.cursor(sc, hover=True).connect(
+            "add",
+            lambda sel, nlist=nlist: sel.annotation.set_text(str(nlist[sel.index]))
+        )
     ax1.set_aspect('equal')
     ax1.legend(scatterpoints=1, fontsize=8, title="Node ranges")
-    plt.xlabel("X coordinate")
-    plt.ylabel("Y coordinate")
+    plt.xlabel('X coordinate')
+    plt.ylabel('Y coordinate')
     plt.tight_layout()
     plt.show(block=False)
 
-    # Second plot: Grid cells with 6-color pattern
+    # Second plot: Grid cells with 6-color pattern and hover
     fig, ax2 = plt.subplots(figsize=(10, 8))
     nx.draw_networkx_edges(
         G_und, pos,
@@ -124,8 +122,7 @@ if __name__ == "__main__":
     ax2.set_yticklabels([f"{y:.1f}" for y in y_lines], fontsize=8)
 
     # 6-color pattern based on (row%2, col%3)
-    num_colors = 6
-    cmap2 = plt.cm.get_cmap('tab20', num_colors)
+    cmap2 = plt.cm.get_cmap('tab20', 6)
     for cell, nodelist in categories.items():
         parts = cell.split('_col')
         r = int(parts[0].replace('row',''))
@@ -134,13 +131,18 @@ if __name__ == "__main__":
         color = cmap2(color_idx)
         present = [n for n in nodelist if n in G_und]
         if present:
-            nx.draw_networkx_nodes(
+            sc2 = nx.draw_networkx_nodes(
                 G_und, pos,
                 nodelist=present,
                 node_size=20,
                 node_color=[color],
                 ax=ax2,
                 label=cell
+            )
+            # Attach hover tooltip
+            mplcursors.cursor(sc2, hover=True).connect(
+                "add",
+                lambda sel, present=present: sel.annotation.set_text(str(present[sel.index]))
             )
     ax2.set_aspect('equal')
     #ax2.legend(scatterpoints=1, fontsize=8, title='Grid Cells')
