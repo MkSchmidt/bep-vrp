@@ -5,7 +5,7 @@ import os
 from read_files import load_edgefile, load_flowfile, load_nodefile, project_root
 import matplotlib.pyplot as plt
 from matplotlib import animation
-
+import mplcursors
 # --- Parameters & Profiles ---
 customers = [918,782,  911, 500, 400, 300, 600]
 depot = [1]
@@ -135,13 +135,26 @@ if __name__ == "__main__":
     pos = {n: data["coordinates"] for n, data in G_dir.nodes(data=True)}
     edges = list(G_und.edges())
 
-    # Plot setup
+    # Plot network
     fig, ax = plt.subplots(figsize=(10,8))
-    nx.draw_networkx_nodes(G_und, pos, node_size=1, ax=ax, node_color='gray')
-    nx.draw_networkx_nodes(G_dir, pos, nodelist=customers, node_size=20, ax=ax, node_color='blue')
-    nx.draw_networkx_nodes(G_dir, pos, nodelist=depot,    node_size=20, ax=ax, node_color='red')
-    nx.draw_networkx_nodes(G_dir, pos, nodelist=edge_example, node_size=20, ax=ax, node_color='green')
-    drawn = nx.draw_networkx_edges(G_und, pos, edgelist=edges, edge_color="0.8", ax=ax)
+    # All nodes
+    all_ids = list(G_und.nodes())
+    sc_all = nx.draw_networkx_nodes(G_und, pos, nodelist=all_ids, node_size=2, node_color='gray', ax=ax)
+    # customers, depot, example edges
+    sc_cust = nx.draw_networkx_nodes(G_dir, pos, nodelist=customers, node_size=20, node_color='blue', ax=ax)
+    sc_depot = nx.draw_networkx_nodes(G_dir, pos, nodelist=depot,node_size=20, node_color='red', ax=ax)
+    # Draw edges
+    drawn = nx.draw_networkx_edges(G_und, pos,edgelist=edges,ax=ax,edge_color=[str(0.8) for _ in edges])
+
+
+    artists = [(sc_all, all_ids),
+           (sc_cust, customers),
+           (sc_depot, depot)] 
+
+    for sc, id_list in artists:
+        mplcursors.cursor(sc, hover=True) \
+                 .connect('add', lambda sel, ids=id_list: sel.annotation.set_text(str(ids[sel.index])))
+        
 
     # Title and timer text
     title = ax.set_title("Time: 00:00")
