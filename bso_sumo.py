@@ -11,6 +11,7 @@ def parse_args():
     p.add_argument("--depot",     required=True, help="Depot node ID")
     p.add_argument("--customers", required=True, nargs="+", help="Customer node IDs (space separated)")
     p.add_argument("--net", default="BEP-VRP/output/anaheim_net.xml", required=True)
+    p.add_argument("--vehs", type=int, required=False, default=1)
     return p.parse_args()
 
 def build_graph(netfile):
@@ -75,7 +76,7 @@ def main():
         start_time=0.0,     
         pop_size=20,
         n_clusters=3,
-        ideas_per_cluster=1,
+        ideas_per_cluster=2,
         max_iter=10,
         remove_rate=0.5
     )
