@@ -56,13 +56,20 @@ def main():
     args = parse_args()
     traci.start(["sumo-gui", "-c", args.cfg, "--start", "--no-step-log"])
     G = build_graph(args.net)
-    
+    snet = sumonet.readNet(args.net)    
     assert G is not None and len(G) > 0, f"build_graph({args.net}) failed to load any edges!"
 
     depot     = args.depot
     customers = args.customers
     bso_nodes = [depot] + customers
-    demands   = [2] * len(customers)  
+    # every customer has unit demand
+    demands   = [1] * len(customers)
+
+    # split total demand evenly across args.vehs vehicles
+    import math
+    total_demand     = sum(demands)
+    num_vehicles     = args.vehs
+    vehicle_capacity = math.ceil(total_demand / num_vehicles) 
 
     def travel_time_fn(u_idx, v_idx, t):
         u = bso_nodes[u_idx]
@@ -72,34 +79,34 @@ def main():
     bso = BSOLNS(
         travel_time_fn=travel_time_fn,
         demands=demands,
-        vehicle_capacity= 0.5 * sum(demands),
-        start_time=0.0,     
+        vehicle_capacity=vehicle_capacity,
+        start_time=0.0,
         pop_size=20,
         n_clusters=3,
-        ideas_per_cluster=2,
+        ideas_per_cluster=1,
         max_iter=10,
         remove_rate=0.5
     )
     best = bso.run()
     print("Best dynamic cost:", best["cost"], "solution:", best["sol"])
 
-    sol       = best["sol"][0]
-    hop_idxs  = [0] + sol + [0]
-    node_path = [bso_nodes[i] for i in hop_idxs]
+    # now best["sol"] is a list of routes, one per vehicle
+    for vidx, route in enumerate(best["sol"]):
+        hop_idxs  = [0] + route + [0]
+        node_path = [bso_nodes[i] for i in hop_idxs]
 
-    sumo_route = []
-    for u, v in pairwise(node_path):
-        subpath = nx.shortest_path(
-            G,
-            source=u,
-            target=v,
-            weight="free_flow_time"
-        )
-        for a, b in pairwise(subpath):
-            sumo_route.append(G[a][b]["sumo_edge"])
+        sumo_route = []
+        for u, v in pairwise(node_path):
+            subpath = nx.shortest_path(G,source=u,target=v,weight="free_flow_time")
+            for a, b in pairwise(subpath):
+                edge_id = G[a][b]["sumo_edge"]
+                sumo_route.append(edge_id)
 
-    traci.route.add("bso_route", sumo_route)
-    traci.vehicle.add("bso_veh", routeID="bso_route", typeID='DEFAULT_VEHTYPE')
+        route_id = f"bso_route_{vidx}"
+        veh_id   = f"bso_veh_{vidx}"
+
+        traci.route.add(route_id, sumo_route)
+        traci.vehicle.add(veh_id, routeID=route_id, typeID="DEFAULT_VEHTYPE", depart=vidx*2.0)
 
     while traci.simulation.getMinExpectedNumber() > 0:
         traci.simulationStep()
