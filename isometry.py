@@ -2,10 +2,11 @@ import numpy as np
 import torch
 
 def place_points(squared_distances):
-    coordinates = torch.zeros((NUM_VERTICES, NUM_VERTICES - 1), dtype=torch.complex64)
+    n = squared_distances.shape[0]
+    coordinates = torch.zeros((n, n - 1), dtype=torch.complex64)
     coordinates[1,0] = torch.sqrt(squared_distances[0,1])
 
-    for i in range(2, NUM_VERTICES):
+    for i in range(2, n):
         d = squared_distances[0:i, i]
         l = torch.sum(coordinates[0:i]**2, dim=1)
 
@@ -59,18 +60,12 @@ def reduce_dims(points, n=5):
     output = torch.zeros((points.shape[0], n), dtype=torch.complex64)
     average_point = torch.mean(points, dim=0, keepdim=True)
     working_array = points - average_point
-    for i in range(n):
-        real_variance = torch.var(working_array.real, dim=0)
-        imag_variance = torch.var(working_array.imag, dim=0)
-        unit, variance = (1., real_variance) if real_variance.norm() > imag_variance.norm() else (1j, imag_variance)
-        direction = variance / variance.norm()
-        component = direction * working_array
-        output[:,i] = torch.norm(component, dim=1) * unit
-        working_array -= component * unit
-    return output
+    covariance = torch.cov(working_array.T).abs()
+    eigenvalues, eigenvectors = torch.linalg.eigh(covariance)
+    return points @ eigenvectors.to(torch.complex64)[:, -n:]
 
 if __name__ == "__main__":
-    NUM_VERTICES = 100
+    NUM_VERTICES = 10
 
     squared_distances = torch.rand((NUM_VERTICES, NUM_VERTICES), dtype=torch.float32)
     squared_distances = torch.abs(squared_distances - squared_distances.T)
