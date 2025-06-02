@@ -58,9 +58,7 @@ def approximate_points(squared_distances, dimensions=None, iterations=10000, lr=
 
 def reduce_dims(points, n=5):
     output = torch.zeros((points.shape[0], n), dtype=torch.complex64)
-    average_point = torch.mean(points, dim=0, keepdim=True)
-    working_array = points - average_point
-    covariance = torch.cov(working_array.T).abs()
+    covariance = torch.cov(points.T).abs()
     eigenvalues, eigenvectors = torch.linalg.eigh(covariance)
     return points @ eigenvectors.to(torch.complex64)[:, -n:]
 
@@ -72,7 +70,7 @@ if __name__ == "__main__":
     
     analytical_points = place_points(squared_distances)
     
-    reduced_points = reduce_dims(analytical_points, n=4)
+    reduced_points = reduce_dims(analytical_points, n=9)
 
     random_points = torch.rand((NUM_VERTICES, NUM_VERTICES), dtype=torch.complex64)
     
@@ -83,4 +81,4 @@ if __name__ == "__main__":
     from matplotlib import pyplot as plt
 
     plt.plot(mse_history)
-    plt.show()
+    #plt.show()
