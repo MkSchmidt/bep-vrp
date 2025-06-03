@@ -10,10 +10,11 @@ from read_files import (
     load_edgefile, load_flowfile,
     load_nodefile, project_root, read_folder)
 from BsoLns_imp import BSOLNS 
+import mplcursors
 
 # Define BSO-LNS Problem: Depot and Customers
 depot_node_id = 1 #918 
-customer_node_ids = [1,4,5,50] #911, 210, 350, 123, 456,300] #,300, 400, 500, 200, 100] # Example: 5 customers
+customer_node_ids = [1,4,5,50,60,70,80,90,100] #911, 210, 350, 123, 456,300] #,300, 400, 500, 200, 100]
 time_step_minutes = 10 #mins
 sim_start = 6 * 60 #6:00
 route_start_t = 12 * 60  #15:30
@@ -230,6 +231,8 @@ if __name__ == "__main__":
     nx.draw_networkx_nodes(G_directed, pos, nodelist= [depot_node_id], node_size=20, ax=ax, node_color='red')
     drawn = nx.draw_networkx_edges(undirected_graph, pos, edgelist=edges, edge_color="0.8", ax=ax)
     
+    
+
     # Ensure these nodes exist in your graph:
     customer_node_ids = [nid for nid in customer_node_ids if undirected_graph.has_node(nid)]
     if not undirected_graph.has_node(depot_node_id):

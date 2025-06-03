@@ -120,7 +120,7 @@ def get_travel_time(attrs: dict, t_min, B):
 if __name__ == "__main__":
     # Load Data
     edges_df, nodes_df, trips_df, flow_df = read_folder(os.path.join(project_root, "TransportationNetworks", "Anaheim"))
-    
+
     # Build graphs
     G_dir = graph_from_data(edges_df, nodes_df)
     G_und = nx.Graph(G_dir)
@@ -191,6 +191,7 @@ if __name__ == "__main__":
         interval=200,
         blit=False
     )
+    
     ax.set_aspect('equal')
     plt.xlabel("X coordinate"); plt.ylabel("Y coordinate")
     plt.tight_layout()
@@ -240,5 +241,6 @@ if G_und.has_edge(u, v):
     )
     ax3.legend()
     plt.tight_layout()
-    plt.show()
+    plt.show(block=False)
+plt.show()
 
