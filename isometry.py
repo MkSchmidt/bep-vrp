@@ -3,11 +3,14 @@ import torch
 
 def place_points(squared_distances):
     n = squared_distances.shape[0]
-    coordinates = torch.zeros((n, n - 1), dtype=torch.complex64)
+    coordinates = torch.zeros((n, n - 1), dtype=torch.complex128)
     coordinates[1,0] = torch.sqrt(squared_distances[0,1])
 
     for i in range(2, n):
-        d = squared_distances[0:i, i]
+        if i < n-1:
+            d = squared_distances[0:i, i] - 1
+        else:
+            d = squared_distances[0:i, i]
         l = torch.sum(coordinates[0:i]**2, dim=1)
 
         s = d - l
@@ -20,11 +23,16 @@ def place_points(squared_distances):
         left_reduced = left[:-1, :-1]
 
         # l @ x = r therefore x = l.inv @ r
-
-        x_reduced = torch.inverse(left_reduced) @ r_reduced
-        additional_distance = squared_distances[0][i] - torch.sum(x_reduced**2)
-        x = torch.cat((x_reduced, torch.tensor([ np.roots([ 1, 0, -additional_distance.item() ])[0]])))
+        lr_inverse = torch.inverse(left_reduced)
+        b = torch.cat((lr_inverse @ r_reduced, torch.tensor([0.])))
+        c = torch.cat((-lr_inverse @ left[:-1, -1], torch.tensor([1.])))
+        p = np.roots([ torch.sum(c**2), 2*torch.sum(c*b), (torch.sum(b**2) - d[0]) ])[0]
+        x = torch.tensor(p)*c + b
         coordinates[i,0:i] = x
+        if i < n-1:
+            coordinates[i, i] = 1
+        if n == 4 and i == 3:
+            breakpoint()
 
     return coordinates
 
@@ -57,10 +65,10 @@ def approximate_points(squared_distances, dimensions=None, iterations=10000, lr=
     return points, mse_history
 
 def reduce_dims(points, n=5):
-    output = torch.zeros((points.shape[0], n), dtype=torch.complex64)
+    output = torch.zeros((points.shape[0], n), dtype=torch.complex128)
     covariance = torch.cov(points.T).real
     eigenvalues, eigenvectors = torch.linalg.eigh(covariance)
-    return points @ eigenvectors.to(torch.complex64)[:, -n:]
+    return points @ eigenvectors.to(torch.complex128)[:, -n:]
 
 if __name__ == "__main__":
     NUM_VERTICES = 10
@@ -77,8 +85,16 @@ if __name__ == "__main__":
     approx_points, mse_history = approximate_points(squared_distances, iterations=5000, lr=1e-4, dimensions = 4)
 
     print(f"Analytical loss: {mse_absolute(analytical_points, squared_distances)}, reduced loss: {mse_absolute(reduced_points, squared_distances)}, approximation_loss: {mse_absolute(approx_points, squared_distances)}, random loss: {mse_absolute(random_points, squared_distances)}")
+    
+    difficult_distances = torch.tensor([
+        [0, 4, 4, 1],
+        [4, 0, 4, 1],
+        [4, 4, 0, 1],
+        [1, 1, 1, 0]
+    ])
+    dpoints = place_points(difficult_distances)
 
     from matplotlib import pyplot as plt
-
+    
     plt.plot(mse_history)
     #plt.show()
