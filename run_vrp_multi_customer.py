@@ -8,12 +8,12 @@ from itertools import pairwise
 from matplotlib import pyplot as plt, animation
 from read_files import (
     load_edgefile, load_flowfile,
-    load_nodefile, project_root)
+    load_nodefile, project_root, read_folder)
 from BsoLns_imp import BSOLNS 
 
 # Define BSO-LNS Problem: Depot and Customers
-depot_node_id = 918 
-customer_node_ids = [911, 210, 350, 123, 456,300] #,300, 400, 500, 200, 100] # Example: 5 customers
+depot_node_id = 1 #918 
+customer_node_ids = [1,4,5,50] #911, 210, 350, 123, 456,300] #,300, 400, 500, 200, 100] # Example: 5 customers
 time_step_minutes = 10 #mins
 sim_start = 6 * 60 #6:00
 route_start_t = 12 * 60  #15:30
@@ -201,10 +201,8 @@ def arrival_times_for_path(graph: nx.DiGraph, path: list, start_t: float) -> dic
 # -------Animation Update Functions---------
 if __name__ == "__main__":
     # Load Network
-    edges_df = load_edgefile(os.path.join(project_root,"TransportationNetworks","Chicago-Sketch", "ChicagoSketch_net.tntp"))
-    nodes_df = load_nodefile(os.path.join(project_root,"TransportationNetworks","Chicago-Sketch", "ChicagoSketch_node.tntp"))
-    flow_df  = load_flowfile(os.path.join(project_root,"TransportationNetworks","Chicago-Sketch", "ChicagoSketch_flow.tntp"))
-
+    edges_df, nodes_df, trips_df, flow_df = read_folder(os.path.join(project_root, "TransportationNetworks", "Anaheim"))
+    
     G_directed = graph_from_data(edges_df, nodes_df)
     undirected_graph = nx.Graph() # Start with an empty graph
 

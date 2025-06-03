@@ -2,12 +2,12 @@ import networkx as nx
 import pandas as pd
 from typing import Optional
 import os
-from read_files import load_edgefile, load_flowfile, load_nodefile, project_root
+from read_files import load_edgefile, load_flowfile, load_nodefile, project_root, read_folder
 import matplotlib.pyplot as plt
 from matplotlib import animation
 import mplcursors
 # --- Parameters & Profiles ---
-customers = [918,782,  911, 500, 400, 300, 600]
+customers = [1,2,4]#[918,782,  911, 500, 400, 300, 600]
 depot = [1]
 demand_value = 5
 edge_example = 514, 513 #1 ,547 Neighboorhoodroad #388, 390 #392, 713 #388,390 #918,782 
@@ -119,10 +119,8 @@ def get_travel_time(attrs: dict, t_min, B):
 # --- Main & Animation ---
 if __name__ == "__main__":
     # Load Data
-    edges_df = load_edgefile(os.path.join(project_root, "TransportationNetworks", "Chicago-Sketch", "ChicagoSketch_net.tntp"))
-    nodes_df = load_nodefile(os.path.join(project_root, "TransportationNetworks", "Chicago-Sketch", "ChicagoSketch_node.tntp"))
-    flow_df  = load_flowfile(os.path.join(project_root, "TransportationNetworks", "Chicago-Sketch", "ChicagoSketch_flow.tntp"))
-
+    edges_df, nodes_df, trips_df, flow_df = read_folder(os.path.join(project_root, "TransportationNetworks", "Anaheim"))
+    
     # Build graphs
     G_dir = graph_from_data(edges_df, nodes_df)
     G_und = nx.Graph(G_dir)
