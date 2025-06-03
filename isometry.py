@@ -8,7 +8,7 @@ def place_points(squared_distances):
 
     for i in range(2, n):
         if i < n-1:
-            d = squared_distances[0:i, i] - 1
+            d = squared_distances[0:i, i] - 0.168
         else:
             d = squared_distances[0:i, i]
         l = torch.sum(coordinates[0:i]**2, dim=1)
@@ -93,6 +93,14 @@ if __name__ == "__main__":
         [1, 1, 1, 0]
     ])
     dpoints = place_points(difficult_distances)
+
+    dd2 = torch.tensor([
+        [0, 1, 1, 1],
+        [1, 0, 4, 4],
+        [1, 4, 0, 4],
+        [1, 4, 4, 0]
+    ])
+    d2points = place_points(dd2)
 
     from matplotlib import pyplot as plt
     
