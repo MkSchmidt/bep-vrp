@@ -58,7 +58,7 @@ def approximate_points(squared_distances, dimensions=None, iterations=10000, lr=
 
 def reduce_dims(points, n=5):
     output = torch.zeros((points.shape[0], n), dtype=torch.complex64)
-    covariance = torch.cov(points.T).abs()
+    covariance = torch.cov(points.T).real
     eigenvalues, eigenvectors = torch.linalg.eigh(covariance)
     return points @ eigenvectors.to(torch.complex64)[:, -n:]
 
@@ -70,7 +70,7 @@ if __name__ == "__main__":
     
     analytical_points = place_points(squared_distances)
     
-    reduced_points = reduce_dims(analytical_points, n=9)
+    reduced_points = reduce_dims(analytical_points, n=8)
 
     random_points = torch.rand((NUM_VERTICES, NUM_VERTICES), dtype=torch.complex64)
     
