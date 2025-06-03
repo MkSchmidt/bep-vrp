@@ -1,5 +1,13 @@
-from write_sumo_net import project_root, convert_folder
+from write_sumo_net import convert_folder
 import os
 
-siouxfallspath = os.path.join(project_root, "TransportationNetworks", "SiouxFalls")
-convert_folder(siouxfallspath, os.path.join(project_root, "output"))
+# Maps to choose:
+# Simple :          SiouxFalls
+# Intermediate :    Anaheim
+# Complex :         Chicago-Sketch
+
+if __name__ == "__main__":
+    project_root = os.path.dirname(__file__)
+    input_folder = os.path.join(project_root, "TransportationNetworks", "Anaheim")
+    output_folder= os.path.join(project_root, "output")
+    convert_folder(input_folder, output_folder)
