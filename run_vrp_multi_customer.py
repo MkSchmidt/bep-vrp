@@ -13,20 +13,24 @@ from BsoLns_imp import BSOLNS
 
 # Define BSO-LNS Problem: Depot and Customers
 depot_node_id = 918 
-customer_node_ids = [911, 210, 350, 123, 456,300, 1] #,300, 400, 500, 200, 100] # Example: 5 customers
+customer_node_ids = [911, 210, 350, 123, 456,300] #,300, 400, 500, 200, 100] # Example: 5 customers
 time_step_minutes = 10 #mins
 sim_start = 6 * 60 #6:00
 route_start_t = 12 * 60  #15:30
-vehicle_capacity = 50
-n_demand = 10 # Demand per customer
+num_vehicles = 4
+n_demand = [1] * len(customer_node_ids)# Demand per customer
+total_demand = sum(n_demand)
+vehicle_capacity = math.ceil(total_demand/num_vehicles)
 
 # Time-breakpoints demand function
 t1, t2, t3, t4 = 6.5*60, 8.5*60, 10*60, 12*60
 t5, t6, t7, t8 = 16.5*60, 18*60, 20*60, 22*60
 
+
+
 # Parameters for BSO
 pop_size= 10           
-#n_clusters=max(1, min(5, num_bso_customers // 2 if num_bso_customers > 1 else 1)) 
+n_clusters = 3
 ideas_per_cluster = 5
 max_iter = 5            
 remove_rate=0.3
@@ -238,7 +242,7 @@ if __name__ == "__main__":
     # `bso_nodes` maps BSOLNS internal indices (0 for depot, 1..N for customers) to actual graph node IDs
     bso_nodes_map = [depot_node_id] + customer_node_ids 
     num_bso_customers = len(customer_node_ids)
-    customer_demands = [n_demand for _ in range(num_bso_customers)]
+    customer_demands = n_demand
 
 
     # Title and timer text
@@ -297,7 +301,7 @@ if __name__ == "__main__":
         vehicle_capacity=vehicle_capacity,
         start_time= route_start_t,
         pop_size= pop_size,           
-        n_clusters=max(1, min(5, num_bso_customers // 2 if num_bso_customers > 1 else 1)), # ????Heuristic for n_clusters????
+        n_clusters= n_clusters, 
         ideas_per_cluster = ideas_per_cluster,
         max_iter = max_iter,
         remove_rate = remove_rate)
