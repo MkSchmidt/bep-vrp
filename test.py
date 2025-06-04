@@ -88,9 +88,9 @@ def get_speed(attrs, t_min, B):
     free_time = 1.6667 if free_time ==0 else free_time # Neighboorhoodroads, dont have Free_flow_time in Data ---> ~30 km/h
     length = attrs.get("length")* 0.3048
     if density <= critical_density:
-        return (length / free_time) * 60 /1000 #km/h
+        return (length / free_time)  / 60 # m/s
     else:
-        return (length / (free_time + (density - critical_density) * B)) * 60 / 1000
+        return (length / (free_time + (density - critical_density) * B)) /60 #m/s
     '''    else:
         capacity  = attrs.get("capacity")
         pc = get_critical_density(attrs) 
@@ -226,7 +226,7 @@ if G_und.has_edge(u, v):
             "Flow (veh/h)": get_flow(edge_attrs, t),
             "Critical Density (veh/km)": get_critical_density(edge_attrs),
             "Travel Time (min)": get_travel_time(edge_attrs, t, B),
-            "Speed in km/h of mph" : get_speed(edge_attrs, t, B),
+            "Speed in m/s" : get_speed(edge_attrs, t, B),
             "Density(veh/km)" : get_density(edge_attrs,t),
         })
 
