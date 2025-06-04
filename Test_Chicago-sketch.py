@@ -10,7 +10,7 @@ import mplcursors
 customers = [1,2,4]#[918,782,  911, 500, 400, 300, 600]
 depot = [1]
 demand_value = 5
-edge_example = [534,933]#[388, 390]# 12 ,275#5,6# #1 ,547 Neighboorhoodroad #388, 390 #392, 713 #388,390 #918,782 
+edge_example = [437,436]#[534,933]#[388, 390]# 12 ,275#5,6# #1 ,547 Neighboorhoodroad #388, 390 #392, 713 #388,390 #918,782 
 B = 0.15 #This seems to be the standard 
 
 
@@ -101,7 +101,7 @@ def get_travel_time(attrs: dict, t_min, B):
 
 # Determine the speed over each edge
 def get_speed(attrs,t_min,B):
-    length = (attrs.get("length")/1.6093)            #[km]
+    length = (attrs.get("length")/1.6093)               #[km]
     travel_time = get_travel_time(attrs,t_min , B)/60   #[h]
     return (length / travel_time)   
 
@@ -112,7 +112,7 @@ def congestion_time(attrs: dict, t_min, B):
     critical_density = get_critical_density(attrs)         #[veh/km]
     density = get_density(attrs,t_min)                     #[veh/km]
     flow = get_flow(attrs, t_min)                          #[veh/h]
-    beta = 4                                                #[veh/h]
+    beta = 4                                               #[veh/h]
     if density <= critical_density:
         return 0
     else:
