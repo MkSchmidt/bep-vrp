@@ -76,25 +76,29 @@ def get_density(attrs: dict, t_min):
     free_time = attrs.get("free_flow_time")
     free_time = 1.6667 if free_time ==0 else free_time # Neighboorhoodroads, dont have Free_flow_time in Data ---> ~30 km/h
     flow = get_flow(attrs, t_min) #veh/h
-    free_speed = (length / free_time) * 60 # km/h 
+    free_speed = (length / free_time) * 60/1000 # km/h 
     density = flow / free_speed
     return density #veh/km = veh/h / km/h
 
 # Determine the speed over each edge
-def get_speed(attrs, t_min):
+def get_speed(attrs, t_min, B):
     density = get_density(attrs, t_min)
     critical_density = get_critical_density(attrs)
     free_time = attrs.get("free_flow_time")
     free_time = 1.6667 if free_time ==0 else free_time # Neighboorhoodroads, dont have Free_flow_time in Data ---> ~30 km/h
     length = attrs.get("length")* 0.3048
     if density <= critical_density:
-        return (length / free_time) * 60 #km/h
+        return (length / free_time) * 60 /1000 #km/h
     else:
+        return (length / (free_time + (density - critical_density) * B)) * 60 / 1000
+    '''    else:
         capacity  = attrs.get("capacity")
         pc = get_critical_density(attrs) 
         pj = 5 * pc # ???? hoe bereken/bepaal je dit ??? bumper tot bumper
         w = capacity / (pj - pc) # Congestion speed
         return w 
+    '''
+
 
 # Needed for Visualization
 def congestion_time(attrs: dict, t_min, B):
@@ -107,14 +111,14 @@ def congestion_time(attrs: dict, t_min, B):
 
 # Travel time bepalen
 def get_travel_time(attrs: dict, t_min, B):
-    freetime = attrs.get("free_flow_time")
+    free_time = attrs.get("free_flow_time")
     critical_density = get_critical_density(attrs)
     density = get_density(attrs,t_min)
     flow = get_flow(attrs, t_min)
     if density <= critical_density:
-        travel_time = freetime
+        travel_time = free_time
     else:
-        travel_time = freetime + (density - critical_density) * B    #length / w
+        travel_time = free_time + (density - critical_density) * B    #length / w
     return travel_time
 
 # --- Main & Animation ---
@@ -222,7 +226,7 @@ if G_und.has_edge(u, v):
             "Flow (veh/h)": get_flow(edge_attrs, t),
             "Critical Density (veh/km)": get_critical_density(edge_attrs),
             "Travel Time (min)": get_travel_time(edge_attrs, t, B),
-            "Speed in km/h of mph" : get_speed(edge_attrs, t),
+            "Speed in km/h of mph" : get_speed(edge_attrs, t, B),
             "Density(veh/km)" : get_density(edge_attrs,t),
         })
 
