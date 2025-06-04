@@ -14,7 +14,7 @@ import mplcursors
 
 # Define BSO-LNS Problem: Depot and Customers
 depot_node_id = 1 #918 
-customer_node_ids = [1,4,5,50,60,70,80,90,100] #911, 210, 350, 123, 456,300] #,300, 400, 500, 200, 100]
+customer_node_ids = [1,4,5,50,60,70,80,90,100, 911, 210, 350, 123, 456,300] #,300, 400, 500, 200, 100]
 time_step_minutes = 10 #mins
 sim_start = 6 * 60 #6:00
 route_start_t = 12 * 60  #15:30
@@ -33,7 +33,7 @@ t5, t6, t7, t8 = 16.5*60, 18*60, 20*60, 22*60
 pop_size= 10           
 n_clusters = 3
 ideas_per_cluster = 5
-max_iter = 5            
+max_iter = 1            
 remove_rate=0.3
 
 # Demands for each customer (must match the order in customer_node_ids)
@@ -202,7 +202,7 @@ def arrival_times_for_path(graph: nx.DiGraph, path: list, start_t: float) -> dic
 # -------Animation Update Functions---------
 if __name__ == "__main__":
     # Load Network
-    edges_df, nodes_df, trips_df, flow_df = read_folder(os.path.join(project_root, "TransportationNetworks", "Anaheim"))
+    edges_df, nodes_df, trips_df, flow_df = read_folder(os.path.join(project_root, "TransportationNetworks", "Chicago-Sketch")) #Anaheim
     
     G_directed = graph_from_data(edges_df, nodes_df)
     undirected_graph = nx.Graph() # Start with an empty graph
@@ -353,77 +353,69 @@ if __name__ == "__main__":
                     bso_edges_for_animation.update(segment_edge_times)
                     route_start_t = undirected_graph.nodes[depot_node_id]["arrival_time"]
 
- # ── Static and other dynamic paths for comparison (optional) ─────
+     # Assign routes a color
+def get_route_colors(num_routes):
+    colormap = plt.cm.get_cmap('tab10', num_routes)  # 'tab10' colormap with distinct colors
+    colors = [colormap(i) for i in range(num_routes)]  
+    return colors
 
-    ''' 
-    if customer_node_ids:
-        first_customer_node = customer_node_ids[0]
-        dyn_path_example = dynamic_dijkstra(undirected_graph, depot_node_id, first_customer_node, route_start_t)
-        dynamic_edges_example = arrival_times_for_path(undirected_graph, dyn_path_example, route_start_t)
-
-        static_path_example = nx.shortest_path(
-            undirected_graph, source=depot_node_id, target=first_customer_node,
-            weight="free_flow_time"
-        )
-        static_edges_example = arrival_times_for_path(undirected_graph, static_path_example, route_start_t)
-    else:
-        dynamic_edges_example, static_edges_example = {}, {}
-''' 
-
- #  ------Updating animation-------  
-    def update_frame(frame_minutes_offset):
-        current_sim_time =  sim_start + frame_minutes_offset
-        
-        # Add Timer
-        h, m = divmod(current_sim_time, 60)
-        title.set_text(f"Time: {h:02}:{m:02}")
-        hrs = frame_minutes_offset // 60
-        mins = frame_minutes_offset % 60
-        secs = 0  # since frame steps in minutes
-        timer_text.set_text(f"Elapsed: {hrs:02}:{mins:02}:{secs:02}")
-
-
-        # Congestion coloring
-        added_travel_times = [congestion_time(undirected_graph.edges[e], current_sim_time) for e in edges]
-        base_intensities = [str(max(0.9/15 * (15 - tau), 0)) for tau in added_travel_times] 
-
-        edge_colors = []
-        for i, edge_tuple in enumerate(edges):
-            u, v = edge_tuple 
-            edge_key_forward = (u,v)
-            edge_key_backward = (v,u)
-
-            is_on_bso_path = (edge_key_forward in bso_edges_for_animation and bso_edges_for_animation[edge_key_forward] <= current_sim_time) or \
-                             (edge_key_backward in bso_edges_for_animation and bso_edges_for_animation[edge_key_backward] <= current_sim_time)
-            
-            #is_on_static_example = (edge_key_forward in static_edges_example and static_edges_example[edge_key_forward] <= current_sim_time) or \
-            #                       (edge_key_backward in static_edges_example and static_edges_example[edge_key_backward] <= current_sim_time)
-
-            #is_on_dynamic_example = (edge_key_forward in dynamic_edges_example and dynamic_edges_example[edge_key_forward] <= current_sim_time) or \
-            #                        (edge_key_backward in dynamic_edges_example and dynamic_edges_example[edge_key_backward] <= current_sim_time)
-
-            if is_on_bso_path:
-                edge_colors.append("green")
-            #elif is_on_static_example: # Show example static path in red
-            #    edge_colors.append("red")
-            #elif is_on_dynamic_example: # Show example dynamic path in blue
-            #    edge_colors.append("blue")
-            else:
-                edge_colors.append(base_intensities[i]) # Default congestion color
-
-        title.set_text(f"t={int(current_sim_time)//60:02d}:{int(current_sim_time)%60:02d}")
-        drawn.set_color(edge_colors)
-        return [drawn, title, timer_text]
+# Update animation function
+def update_frame(frame_minutes_offset):
+    current_sim_time = sim_start + frame_minutes_offset
     
-    # Create and show animation
-    ani = animation.FuncAnimation(
-        fig,
-        update_frame,
-        frames=range(sim_start,24*60, 15),
-        interval=200,  # Milliseconds between frames
-        blit=True)
-    
-    ax.set_aspect('equal')
-    plt.xlabel("X coordinate"); plt.ylabel("Y coordinate")
-    plt.tight_layout()
-    plt.show()
+    # Add Timer
+    h, m = divmod(current_sim_time, 60)
+    title.set_text(f"Time: {h:02}:{m:02}")
+    hrs = frame_minutes_offset // 60
+    mins = frame_minutes_offset % 60
+    secs = 0  # since frame steps in minutes
+    timer_text.set_text(f"Elapsed: {hrs:02}:{mins:02}:{secs:02}")
+
+    # Get the number of routes and assign unique colors **(Added)**
+    num_routes = len(bso_solution_routes)
+    route_colors = get_route_colors(num_routes)  # **(Added)** Get unique colors for each route
+
+    # Congestion coloring
+    added_travel_times = [congestion_time(undirected_graph.edges[e], current_sim_time) for e in edges]
+    base_intensities = [str(max(0.9/15 * (15 - tau), 0)) for tau in added_travel_times] 
+
+    edge_colors = []  # This will store the color for each edge in the plot
+
+    for i, edge_tuple in enumerate(edges):
+        u, v = edge_tuple 
+        edge_key_forward = (u, v)
+        edge_key_backward = (v, u)
+
+        route_color = None  # **(Added)** Initialize route color as None
+
+        # Check if the edge is part of any route and assign a unique color **(Modified)**
+        for route_idx, route_of_customer_indices in enumerate(bso_solution_routes):
+            if (edge_key_forward in bso_edges_for_animation and bso_edges_for_animation[edge_key_forward] <= current_sim_time) or \
+               (edge_key_backward in bso_edges_for_animation and bso_edges_for_animation[edge_key_backward] <= current_sim_time):
+                route_color = route_colors[route_idx]  # **(Modified)** Assign color for the route
+                break
+
+        if route_color:  # **(Modified)** Check if the route_color is set
+            edge_colors.append(route_color)  # Add the unique route color
+        else:
+            edge_colors.append(base_intensities[i])  # Default congestion color
+
+    # Update the edge colors in the plot
+    title.set_text(f"t={int(current_sim_time)//60:02d}:{int(current_sim_time)%60:02d}")
+    drawn.set_color(edge_colors)  # Set the colors for the edges
+    return [drawn, title, timer_text]
+
+# Create and show the animation
+ani = animation.FuncAnimation(
+    fig,
+    update_frame,
+    frames=range(sim_start, 24*60, 15),  # Simulate for a full day (in minutes)
+    interval=200,  # Milliseconds between frames
+    blit=True
+)
+
+ax.set_aspect('equal')
+plt.xlabel("X coordinate")
+plt.ylabel("Y coordinate")
+plt.tight_layout()
+plt.show()
