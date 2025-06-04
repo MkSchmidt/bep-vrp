@@ -30,10 +30,10 @@ class TrafficSim:
 
     def _get_edge_travel_time(self, source: int, dest: int, t: float) -> float:
         attrs = self.G.edges[source, dest]
-        free_time = attrs.get("free_flow_time") * 60
+        free_time = attrs.get("free_flow_time")
         critical_density = self._get_critical_density(source, dest)
-        density = self._get_density(attrs, t_min)
-        flow = self._get_flow(attrs, t_min)
+        density = self._get_density(source, dest, t_min)
+        flow = self._get_flow(source, dest, t_min)
         if density <= critical_density:
             travel_time = free_time
         else:
@@ -42,9 +42,9 @@ class TrafficSim:
     
     def _get_density(self, source: int, dest: int, t: float) -> float:
         attrs = self.G.edges[source, dest]
-        length = attrs.get("length") * 0.3048
-        free_time = attrs.get("free_flow_time") * 60 or length / (50*3.6)
-        flow = _get_flow(attrs, t_min)
+        length = attrs.get("length")
+        free_time = attrs.get("free_flow_time")
+        flow = self._get_flow(source, dest, t_min)
         free_speed = (length / free_time)
         return flow / free_speed
 
@@ -54,9 +54,9 @@ class TrafficSim:
     
     def _get_critical_density(self, source: int, dest: int) -> float:
         attrs = self.G.edges[source, dest]
-        capacity = attrs.get("capacity") * 3600
-        free_time = attrs.get("free_flow_time") * 60
-        length = attrs.get("length") * 0.3048
+        capacity = attrs.get("capacity")
+        free_time = attrs.get("free_flow_time")
+        length = attrs.get("length")
         ff_speed = length / free_time or 50 * 3.6
         return capacity / ff_speed
 
