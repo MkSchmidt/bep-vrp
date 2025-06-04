@@ -1,13 +1,10 @@
-#!/usr/bin/env python3
-
 import argparse
 import math
 import traci
 import networkx as nx
 from sumolib import net as sumonet
 from GA_Imp import GA_DP
-
-
+path = "C:/Users/tiesv/OneDrive/Werktuigbouwkunde/BEP/bep-vrp/output/"
 def parse_args():
     p = argparse.ArgumentParser()
     p.add_argument(
@@ -119,20 +116,19 @@ def travel_distance(u, v, G, depot_id):
     return length_m / 1000.0  # to km
 
 
-def main():
-    args = parse_args()
+def main(cfg, net, depot, customers, vehs):
 
     # 1. Start SUMO (headless)
-    traci.start(["sumo-gui", "-c", args.cfg, "--start", "--no-step-log"])
+    traci.start(["sumo-gui", "-c", cfg, "--start", "--no-step-log"])
 
     # 2. Build static graph from the network
-    G = build_graph(args.net)
-    snet = sumonet.readNet(args.net)
-    assert G and len(G) > 0, f"Failed to build graph from {args.net}"
+    G = build_graph(net)
+    snet = sumonet.readNet(net)
+    assert G and len(G) > 0, f"Failed to build graph from {net}"
 
     # 3. Prepare VRP inputs
-    depot_id = args.depot       # e.g. "344"
-    customers = args.customers  # list of strings, e.g. ["4", "82", "74", ...]
+    depot_id = depot       # e.g. "344"
+    customers = customers  # list of strings, e.g. ["4", "82", "74", ...]
     bso_nodes = [depot_id] + customers
 
     # Every customer has unit demand = 1.0
@@ -140,7 +136,7 @@ def main():
     demands = {cust: 1.0 for cust in customers}
 
     total_demand = sum(demands.values())
-    num_vehicles = args.vehs
+    num_vehicles = vehs
     num_customers = len(customers)
     # Evenly split total_demand across vehicles
     vehicle_capacity = math.ceil(num_customers / num_vehicles)
@@ -260,4 +256,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    args = parse_args()
+    main(path + args.cfg, path + args.net, args.depot, args.customers, args.vehs)

@@ -4,7 +4,7 @@ import networkx as nx
 from BsoLns_imp import BSOLNS
 from itertools import pairwise
 from sumolib import net as sumonet
-
+path = "C:/Users/tiesv/OneDrive/Werktuigbouwkunde/BEP/bep-vrp/output/"
 def parse_args():
     p = argparse.ArgumentParser()
     p.add_argument("--cfg", default='BEP-VRP/output/anaheim.sumocfg', required=True, help="SUMO .sumocfg (with NPC routes)")
@@ -52,15 +52,12 @@ def td_travel_time(u, v, depart_t, G):
     return dist[v] - depart_t
 
 
-def main():
-    args = parse_args()
-    traci.start(["sumo-gui", "-c", args.cfg, "--start", "--no-step-log"])
-    G = build_graph(args.net)
-    snet = sumonet.readNet(args.net)    
-    assert G is not None and len(G) > 0, f"build_graph({args.net}) failed to load any edges!"
+def main(cfg, net, depot, customers, vehs):
+    traci.start(["sumo-gui", "-c", cfg, "--start", "--no-step-log"])
+    G = build_graph(net)
+    snet = sumonet.readNet(net)    
+    assert G is not None and len(G) > 0, f"build_graph({net}) failed to load any edges!"
 
-    depot     = args.depot
-    customers = args.customers
     bso_nodes = [depot] + customers
     # every customer has unit demand
     demands   = [1] * len(customers)
@@ -68,7 +65,7 @@ def main():
     # split total demand evenly across args.vehs vehicles
     import math
     total_demand     = sum(demands)
-    num_vehicles     = args.vehs
+    num_vehicles     = vehs
     vehicle_capacity = math.ceil(total_demand / num_vehicles) 
 
     def travel_time_fn(u_idx, v_idx, t):
@@ -83,7 +80,7 @@ def main():
         start_time=0.0,
         pop_size=20,
         n_clusters=3,
-        ideas_per_cluster=1,
+        ideas_per_cluster=2,
         max_iter=10,
         remove_rate=0.5
     )
@@ -115,4 +112,5 @@ def main():
     print("Simulation complete.")
 
 if __name__ == "__main__":
-    main()
+    args = parse_args()
+    main(args.cfg, args.net, args.depot, args.customers, args.vehs)
