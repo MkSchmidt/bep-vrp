@@ -10,7 +10,7 @@ import mplcursors
 customers = [1,2,4]#[918,782,  911, 500, 400, 300, 600]
 depot = [1]
 demand_value = 5
-edge_example = 514, 513 #1 ,547 Neighboorhoodroad #388, 390 #392, 713 #388,390 #918,782 
+edge_example = 12 ,275 #1 ,547 Neighboorhoodroad #388, 390 #392, 713 #388,390 #918,782 
 B = 0.15 #This seems to be the standard 
 
 
@@ -21,7 +21,7 @@ t5, t6, t7, t8 = 16.5*60, 18*60, 20*60, 22*60
 
 # Demand function
 def demand(t: float) -> float:
-    low, medium, high = 0.1, 0.5, 110
+    low, medium, high = 0.1, 0.5, 1.1
     if t <= t1:
         return low
     elif t < t2:
@@ -66,17 +66,17 @@ def get_critical_density(attrs: dict):
     capacity = attrs.get("capacity")
     free_time = attrs.get("free_flow_time")
     free_time = 1.667 if free_time == 0 else free_time # Neighboorhoodroads, dont have Free_flow_time in Data ---> ~30 km/h
-    length = attrs.get("length")
+    length = attrs.get("length")* 0.3048
     ff_speed = length / free_time
     return capacity / ff_speed 
 
 # Determine Density of each edge
 def get_density(attrs: dict, t_min):
-    length = attrs.get("length")
+    length = attrs.get("length") * 0.3048
     free_time = attrs.get("free_flow_time")
     free_time = 1.6667 if free_time ==0 else free_time # Neighboorhoodroads, dont have Free_flow_time in Data ---> ~30 km/h
     flow = get_flow(attrs, t_min) #veh/h
-    free_speed = (length / free_time) *60 # km/h 
+    free_speed = (length / free_time) * 60 # km/h 
     density = flow / free_speed
     return density #veh/km = veh/h / km/h
 
@@ -84,10 +84,11 @@ def get_density(attrs: dict, t_min):
 def get_speed(attrs, t_min):
     density = get_density(attrs, t_min)
     critical_density = get_critical_density(attrs)
-    freetime = attrs.get("free_flow_time") or 1.6667 # Neighboorhoodroads, dont have Free_flow_time in Data ---> ~30 km/h
-    length = attrs.get("length")
+    free_time = attrs.get("free_flow_time")
+    free_time = 1.6667 if free_time ==0 else free_time # Neighboorhoodroads, dont have Free_flow_time in Data ---> ~30 km/h
+    length = attrs.get("length")* 0.3048
     if density <= critical_density:
-        return (length / freetime) * 60 #km/h of mph
+        return (length / free_time) * 60 #km/h
     else:
         capacity  = attrs.get("capacity")
         pc = get_critical_density(attrs) 
