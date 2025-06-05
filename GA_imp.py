@@ -36,7 +36,8 @@ class GA_DP:
                  crossover_rate=0.9,
                  mutation_rate=0.2,
                  elite_count=2,
-                 start_time=0.0):
+                 start_time=0.0, 
+                 depot_node_id=0):
         """
         (Modified so that splits are fixed based on equal‐division of N customers across V vehicles.)
         """
@@ -49,6 +50,7 @@ class GA_DP:
         self.num_vehicles = num_vehicles
         self.capacity = vehicle_capacity
         self.time_windows = {} if time_windows is None else time_windows
+        self.depot_node_id = depot_node_id
 
         # 2. Time‐period discretization (still required)
         if period_breaks is None:
@@ -66,6 +68,7 @@ class GA_DP:
         self.mutation_rate = mutation_rate
         self.elite_count = elite_count
         self.start_time = start_time
+        
 
         # ────────────────────────────────────────────────────────────────────────────
         # 4. Compute fixed splits so that routes sizes differ by at most 1
@@ -183,7 +186,7 @@ class GA_DP:
         - route: list of customer IDs (ints).
         - schedule: dict[node → (arrival_min, depart_min)] (may be used downstream).
         """
-        nodes = [0] + route + [0]
+        nodes = [self.depot_node_id] + route + [self.depot_node_id]
         n = len(nodes)
         T = len(self.period_breaks) - 1
 

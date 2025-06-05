@@ -17,7 +17,6 @@ depot_node_id = 406
 customer_node_ids = [386 ,370 , 17 ,267 ,303, 321,305]
 time_step_minutes = 10  # mins
 sim_start = 0 * 60  # 6:00
-route_start_t = 0 * 60 + 30  # 15:30 (in minutes)
 num_vehicles = 2
 n_demand = [1] * len(customer_node_ids)  #Demand per customer
 n_demand = [1] * len(customer_node_ids)
@@ -31,10 +30,18 @@ edge_example = 12 ,275
 # Time-breakpoints demand function
 t1, t2, t3, t4 = 6.5 * 60, 8.5 * 60, 10 * 60, 12 * 60
 t5, t6, t7, t8 = 16.5 * 60, 18 * 60, 20 * 60, 22 * 60
-period_breaks = sorted([0, t1, t2, t3, t4, t5, t6, t7, t8, 24*60])
+route_start_t = 15.5 * 60  # 930
+period_breaks = sorted([0, t1, t2, t3, t4, route_start_t, t5, t6, t7, t8, 24*60])
+start_time = route_start_t
 
 # Parameters for GA
-
+pop_size=50
+max_gens=10
+tournament_size=2    
+crossover_rate=0.9
+mutation_rate=0.2
+elite_count=2
+start_time=0.0
 
 # Function to build graph
 def graph_from_data(edges: pd.DataFrame, nodes: pd.DataFrame) -> nx.DiGraph:
@@ -240,10 +247,6 @@ if __name__ == "__main__":
     if len(customer_node_ids) < 1:
         raise ValueError("No customer nodes defined or found in graph.")
 
-    # BSO-LNS setup: map from BSO indices → actual node IDs
-    bso_nodes_map = [depot_node_id] + customer_node_ids
-    customer_demands = n_demand
-
     # Plot setup: draw nodes & edges once
     fig, ax = plt.subplots(figsize=(10, 8))
     nx.draw_networkx_nodes(
@@ -274,20 +277,22 @@ if __name__ == "__main__":
         bbox=dict(facecolor='white', alpha=0.7, edgecolor='none')
     )
 
-    # Travel time wrapper for BSO using dynamic Dijkstra + memoization
     memoized_travel_times = {}
-    def td_travel_time_wrapper(u_bso_idx, v_bso_idx, depart_t):
-        u_actual = bso_nodes_map[u_bso_idx]
-        v_actual = bso_nodes_map[v_bso_idx]
-        if u_actual == v_actual:
+
+    def td_travel_time_wrapper(u, v, depart_t):
+        # u and v are already actual node IDs, so no mapping needed
+        if u == v:
             return 0.0
-        cache_key = (u_actual, v_actual, depart_t)
+
+        cache_key = (u, v, depart_t)
         if cache_key in memoized_travel_times:
             return memoized_travel_times[cache_key]
-        path_nodes = dynamic_dijkstra(undirected_graph, u_actual, v_actual, depart_t)
-        if not path_nodes or path_nodes[-1] != v_actual:
-            return float('inf')
-        arrival_at_v = undirected_graph.nodes[v_actual]["arrival_time"]
+
+        path_nodes = dynamic_dijkstra(undirected_graph, u, v, depart_t)
+        if not path_nodes or path_nodes[-1] != v:
+            return float("inf")
+
+        arrival_at_v = undirected_graph.nodes[v]["arrival_time"]
         duration = arrival_at_v - depart_t
         memoized_travel_times[cache_key] = duration
         return duration
@@ -300,16 +305,15 @@ if __name__ == "__main__":
         num_vehicles=num_vehicles,
         vehicle_capacity=vehicle_capacity,
         period_breaks=period_breaks,
-        # No time windows here, so just {}:
         time_windows={},
-        # (You can tune pop_size, max_gens, etc. as you wish)
-        pop_size=50,
-        max_gens=100,
-        tournament_size=2,
-        crossover_rate=0.9,
-        mutation_rate=0.2,
-        elite_count=2,
-        start_time=30*60  # if your “route_start_t” is 15:30 (in minutes, that’s 30*60), else use the same
+        pop_size=pop_size,
+        max_gens=max_gens,
+        tournament_size=tournament_size,
+        crossover_rate=crossover_rate,
+        mutation_rate=mutation_rate,
+        elite_count=elite_count,
+        start_time=start_time,
+        depot_node_id=depot_node_id  
     )
 
     # 6) Run the GA_DP solver
@@ -325,6 +329,13 @@ if __name__ == "__main__":
     routes.append(giant_tour[prev:])
     while len(routes) < num_vehicles:
         routes.append([])
+    
+    print("giant_tour:", giant_tour)
+    print("split_indices:", split_indices)
+    print("routes:", routes)
+
+
+
 
     # 8) Now we can “reconstruct” each route’s (node-by-node) travel times,
     # exactly as you did for BSO‐LNS. We’ll store them in ga_edges_for_animation.
