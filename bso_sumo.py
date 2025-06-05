@@ -4,6 +4,8 @@ import networkx as nx
 from BsoLns_imp import BSOLNS
 from itertools import pairwise
 from sumolib import net as sumonet
+import xml.etree.ElementTree as ET
+import csv
 path = "C:/Users/tiesv/OneDrive/Werktuigbouwkunde/BEP/bep-vrp/output/"
 def parse_args():
     p = argparse.ArgumentParser()
@@ -53,7 +55,8 @@ def td_travel_time(u, v, depart_t, G):
 
 
 def main(cfg, net, depot, customers, vehs):
-    traci.start(["sumo-gui", "-c", cfg, "--start", "--no-step-log"])
+    tripinfo_path = "tripinfo.xml"
+    traci.start(["sumo-gui","-c", cfg, "--start","--no-step-log","--tripinfo-output", tripinfo_path])
     G = build_graph(net)
     snet = sumonet.readNet(net)    
     assert G is not None and len(G) > 0, f"build_graph({net}) failed to load any edges!"
@@ -110,7 +113,19 @@ def main(cfg, net, depot, customers, vehs):
 
     traci.close()
     print("Simulation complete.")
+    tree = ET.parse("tripinfo.xml")
+    root = tree.getroot()
 
+    with open("tripinfo.csv", "w", newline="") as fout:
+        writer = csv.writer(fout)
+        writer.writerow(["veh_id", "depart_s", "arrival_s", "duration_s"])
+        for trip in root.findall("tripinfo"):
+            vid = trip.get("id")
+            depart = float(trip.get("depart"))
+            arrival = float(trip.get("arrival"))
+            duration = float(trip.get("duration"))
+            writer.writerow([vid, depart, arrival, duration])
+print("Wrote tripinfo.csv")
 if __name__ == "__main__":
     args = parse_args()
-    main(args.cfg, args.net, args.depot, args.customers, args.vehs)
+    main(path + args.cfg, path + args.net, args.depot, args.customers, args.vehs)
