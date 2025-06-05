@@ -11,37 +11,36 @@ from read_files import (
     load_nodefile, project_root, read_folder)
 from GA_imp import GA_DP 
 import mplcursors
+import time
 
-# Define BSO-LNS Problem: Depot and Customers
+start_script = time.time()
+
+# Define Problem: Depot and Customers
 depot_node_id = 406   
-customer_node_ids = [386 ,370 , 17 ,267 ,303, 321,305]
+customer_node_ids = [386, 370, 17, 267, 303, 321, 305]
 time_step_minutes = 10  # mins
-sim_start = 0 * 60  # 6:00
+sim_start = 0 * 60      # (0 means midnight)
+route_start_t = 9 * 60   # 00:30 (in minutes)
 num_vehicles = 2
-n_demand = [1] * len(customer_node_ids)  #Demand per customer
 n_demand = [1] * len(customer_node_ids)
 demands_dict = {customer_node_ids[i]: n_demand[i] for i in range(len(customer_node_ids))}
 total_demand = sum(n_demand)
 vehicle_capacity = math.ceil(total_demand / num_vehicles)
-B = 0.15
-edge_example = 12 ,275 
-
+edge_example = (12, 275)
 
 # Time-breakpoints demand function
 t1, t2, t3, t4 = 6.5 * 60, 8.5 * 60, 10 * 60, 12 * 60
 t5, t6, t7, t8 = 16.5 * 60, 18 * 60, 20 * 60, 22 * 60
-route_start_t = 15.5 * 60  # 930
-period_breaks = sorted([0, t1, t2, t3, t4, route_start_t, t5, t6, t7, t8, 24*60])
-start_time = route_start_t
+period_breaks = sorted([0, t1, t2, t3, t4, t5, t6, t7, t8, 24*60])
 
 # Parameters for GA
-pop_size=50
-max_gens=10
-tournament_size=2    
-crossover_rate=0.9
-mutation_rate=0.2
-elite_count=2
-start_time=0.0
+pop_size = 50
+max_gens = 10
+tournament_size = 2    
+crossover_rate = 0.9
+mutation_rate = 0.2
+elite_count = 2
+start_time = route_start_t  # Make DP depart at 00:30
 
 # Function to build graph
 def graph_from_data(edges: pd.DataFrame, nodes: pd.DataFrame) -> nx.DiGraph:
@@ -55,13 +54,6 @@ def graph_from_data(edges: pd.DataFrame, nodes: pd.DataFrame) -> nx.DiGraph:
         for e in edges.to_dict("records")
     ])
     return G
-
-# Compute path length (not used directly below but kept for reference)
-def get_path_length(graph: nx.DiGraph, path: list) -> float:
-    return sum(
-        graph.edges[u, v]["free_flow_time"]
-        for u, v in pairwise(path)
-    )
 
 # Demand function
 def demand(t: float) -> float:
@@ -85,12 +77,13 @@ def demand(t: float) -> float:
     else:
         return low
 
+# Travel-distance function (shortest-path in km)
 def travel_distance_fn(u, v):
-    # Compute shortest‐path (in km) by summing (length_feet * 0.3048 / 1000)
     path_nodes = nx.shortest_path(undirected_graph, source=u, target=v, weight="length")
-    dist_m = sum(undirected_graph.edges[path_nodes[i], path_nodes[i+1]]["length"] * 0.3048
-                 
-             for i in range(len(path_nodes)-1))
+    dist_m = sum(
+        undirected_graph.edges[path_nodes[i], path_nodes[i+1]]["length"] * 0.3048
+        for i in range(len(path_nodes)-1)
+    )
     return dist_m / 1000.0  # kilometers
 
 # --- Congestion Model Based on Demand ---
@@ -99,58 +92,45 @@ def get_flow(attrs: dict, t_min: float) -> float:
     return volume * demand(t_min) * 10 
 
 def get_capacity(attrs: dict, t_min: float) -> float:
-    capacity = attrs.get("capacity")
-    return capacity 
+    return attrs.get("capacity") 
 
-# Determine Critical Density for each edge
 def get_critical_density(attrs: dict):
-    capacity = attrs.get("capacity")                    #[veh/h]
-    free_time = attrs.get("free_flow_time")/60          #[h]
-    free_time = 1.667 if free_time == 0 else free_time # Neighboorhoodroads, dont have Free_flow_time in Data ---> ~30 km/h
-    length = attrs.get("length")* 0.3048/1000           #[km]
-    ff_speed = length / free_time                       #[km/h]
-    return capacity / ff_speed                          #[veh/km]
+    capacity = attrs.get("capacity")                    # [veh/h]
+    free_time = attrs.get("free_flow_time") / 60        # [h]
+    free_time = 1.667 if free_time == 0 else free_time   # default ~30 km/h
+    length = attrs.get("length") * 0.3048 / 1000         # [km]
+    ff_speed = length / free_time                        # [km/h]
+    return capacity / ff_speed                           # [veh/km]
 
-# Determine Density of each edge
 def get_density(attrs: dict, t_min):
-    flow = get_flow(attrs, t_min)                        #[veh/h]
-    free_time = attrs.get("free_flow_time")/60           #[h]
-    free_time = 1.6667 if free_time ==0 else free_time   # Neighboorhoodroads, dont have Free_flow_time in Data ---> ~30 km/h
-    length = attrs.get("length") * 0.3048/1000           #[km]
-    free_speed = (length / free_time)                    #[km/h] 
-    density = flow / free_speed                          #[veh/h]
-    return density                                       #[veh/h]
+    flow = get_flow(attrs, t_min)                        # [veh/h]
+    free_time = attrs.get("free_flow_time") / 60         # [h]
+    free_time = 1.6667 if free_time == 0 else free_time   # default ~30 km/h
+    length = attrs.get("length") * 0.3048 / 1000         # [km]
+    free_speed = length / free_time                      # [km/h]
+    return flow / free_speed                             # [veh/km]
 
-# Travel time bepalen
 def get_travel_time(attrs: dict, t_min):
-    capacity = attrs.get("capacity")                    #[veh/h]
-    free_time_min = attrs.get("free_flow_time")            #[min]
-    critical_density = get_critical_density(attrs)         #[veh/km]
-    density = get_density(attrs,t_min)                     #[veh/km]
-    flow = get_flow(attrs, t_min)                          #[veh/h]
+    capacity = attrs.get("capacity")                    # [veh/h]
+    free_time_min = attrs.get("free_flow_time")         # [min]
+    density = get_density(attrs, t_min)                 # [veh/km]
+    flow = get_flow(attrs, t_min)                       # [veh/h]
     beta = 4
     B = 0.15
-    travel_time = free_time_min * (1 + B* (flow/capacity)**beta)   #[min]
-    return travel_time
+    return free_time_min * (1 + B * (flow / capacity) ** beta)  # [min]
 
-# Determine the speed over each edge
-def get_speed(attrs,t_min):
-    length = attrs.get("length")* 0.3048                     #[m]
-    travel_time = get_travel_time(attrs,t_min)  *60   #[s]
-    return (length / travel_time)                            #[m/s]
+def get_speed(attrs: dict, t_min):
+    length_m = attrs.get("length") * 0.3048               # [m]
+    travel_time_s = get_travel_time(attrs, t_min) * 60   # [s]
+    return length_m / travel_time_s                      # [m/s]
 
-
-# Congestiontime ---- Needed for Visualization
 def congestion_time(attrs: dict, t_min):
-    capacity = attrs.get("capacity")                       #[veh/h]
-    free_time_min = attrs.get("free_flow_time")            #[min]
-    critical_density = get_critical_density(attrs)         #[veh/km]
-    density = get_density(attrs,t_min)                     #[veh/km]
-    flow = get_flow(attrs, t_min)                          #[veh/h]
-    beta = 4            #[veh/h]
+    capacity = attrs.get("capacity")                       # [veh/h]
+    free_time_min = attrs.get("free_flow_time")            # [min]
+    flow = get_flow(attrs, t_min)                          # [veh/h]
+    beta = 4
     B = 0.15
-    return free_time_min * (B* (flow/capacity)**beta)     #[min]
-
+    return free_time_min * (B * (flow / capacity) ** beta)  # [min]
 
 def get_node_sequence(graph: nx.DiGraph, end: int) -> list:
     path = []
@@ -214,7 +194,6 @@ def get_route_colors(num_routes):
     colormap = plt.cm.get_cmap('tab10', num_routes)
     return [colormap(i) for i in range(num_routes)]
 
-
 if __name__ == "__main__":
     # Load Network data
     edges_df, nodes_df, trips_df, flow_df = read_folder(
@@ -277,27 +256,23 @@ if __name__ == "__main__":
         bbox=dict(facecolor='white', alpha=0.7, edgecolor='none')
     )
 
+    # Travel time wrapper for GA using dynamic Dijkstra + memoization
     memoized_travel_times = {}
-
     def td_travel_time_wrapper(u, v, depart_t):
-        # u and v are already actual node IDs, so no mapping needed
         if u == v:
             return 0.0
-
         cache_key = (u, v, depart_t)
         if cache_key in memoized_travel_times:
             return memoized_travel_times[cache_key]
-
         path_nodes = dynamic_dijkstra(undirected_graph, u, v, depart_t)
         if not path_nodes or path_nodes[-1] != v:
             return float("inf")
-
         arrival_at_v = undirected_graph.nodes[v]["arrival_time"]
         duration = arrival_at_v - depart_t
         memoized_travel_times[cache_key] = duration
         return duration
 
-        # 5) Instantiate GA_DP, passing exactly those arguments:
+    # Instantiate GA_DP, passing depot_node_id
     ga_solver = GA_DP(
         travel_time_fn=td_travel_time_wrapper,
         travel_distance_fn=travel_distance_fn,
@@ -313,14 +288,18 @@ if __name__ == "__main__":
         mutation_rate=mutation_rate,
         elite_count=elite_count,
         start_time=start_time,
-        depot_node_id=depot_node_id  
+        depot_node_id=depot_node_id
     )
 
-    # 6) Run the GA_DP solver
+    # Run the GA_DP solver
     (giant_tour, split_indices), ga_cost = ga_solver.run()
     print(f"GA_DP final cost: {ga_cost:.2f}, giant_tour: {giant_tour}, splits: {split_indices}")
 
-    # 7) Split the giant_tour into per‐vehicle routes, exactly as GA_DP._evaluate does:
+    # Immediately after GA finishes, stop the timer:
+    end_time = time.time()
+    runtime_seconds = end_time - start_script
+
+    # Split the giant_tour into per-vehicle routes
     routes = []
     prev = 0
     for split in split_indices:
@@ -329,44 +308,35 @@ if __name__ == "__main__":
     routes.append(giant_tour[prev:])
     while len(routes) < num_vehicles:
         routes.append([])
-    
+
     print("giant_tour:", giant_tour)
     print("split_indices:", split_indices)
     print("routes:", routes)
 
-
-
-
-    # 8) Now we can “reconstruct” each route’s (node-by-node) travel times,
-    # exactly as you did for BSO‐LNS. We’ll store them in ga_edges_for_animation.
-    # Note: the GA’s “route” is a list of actual node IDs [e.g. 386, 370, …]. But GA_DP
-    #    interpreted “0” as depot internally, so here we prepend the depot if needed.
+    # Reconstruct each route’s edge-entry times and store (time, route_idx)
     ga_edges_for_animation = {}
-
     for route_idx, route in enumerate(routes):
         t = route_start_t
         current_node = depot_node_id
-        # For each customer node in the sequence, run dynamic_dijkstra from current_node→cust
+
         for cust_node in route:
             path_nodes = dynamic_dijkstra(undirected_graph, current_node, cust_node, t)
-            if not path_nodes:  # if no path found
+            if not path_nodes:
                 break
             seg_times = arrival_times_for_path(undirected_graph, path_nodes, t)
             for (u, v), entry in seg_times.items():
-                ga_edges_for_animation[(u, v)] = entry
-                ga_edges_for_animation[(v, u)] = entry
+                ga_edges_for_animation[(u, v)] = (entry, route_idx)
+                ga_edges_for_animation[(v, u)] = (entry, route_idx)
             t = undirected_graph.nodes[cust_node]["arrival_time"]
             current_node = cust_node
 
-        # Then return to depot if not already there:
         if current_node != depot_node_id:
             path_back = dynamic_dijkstra(undirected_graph, current_node, depot_node_id, t)
             if path_back:
                 seg_times = arrival_times_for_path(undirected_graph, path_back, t)
                 for (u, v), entry in seg_times.items():
-                    ga_edges_for_animation[(u, v)] = entry
-                    ga_edges_for_animation[(v, u)] = entry
-
+                    ga_edges_for_animation[(u, v)] = (entry, route_idx)
+                    ga_edges_for_animation[(v, u)] = (entry, route_idx)
 
     # Update function for animation
     def update_frame(frame_minutes_offset):
@@ -396,19 +366,24 @@ if __name__ == "__main__":
         # Build edge_colors (one color per edge)
         edge_colors = []
         for i, (u, v) in enumerate(edges):
-            t_uv = ga_edges_for_animation.get((u, v), float("inf"))
-            t_vu = ga_edges_for_animation.get((v, u), float("inf"))
-            route_color = None
-            for route_idx in range(num_routes):
-                if t_uv <= current_sim_time or t_vu <= current_sim_time:
-                    route_color = route_colors[route_idx]
-                    break
-            if route_color is not None:
-                edge_colors.append(route_color)
+            entry_route_uv = ga_edges_for_animation.get((u, v), None)
+            entry_route_vu = ga_edges_for_animation.get((v, u), None)
+
+            chosen_color = None
+            if entry_route_uv is not None:
+                entry_time, route_idx = entry_route_uv
+                if entry_time <= current_sim_time:
+                    chosen_color = route_colors[route_idx]
+            if chosen_color is None and entry_route_vu is not None:
+                entry_time, route_idx = entry_route_vu
+                if entry_time <= current_sim_time:
+                    chosen_color = route_colors[route_idx]
+
+            if chosen_color is not None:
+                edge_colors.append(chosen_color)
             else:
                 edge_colors.append(base_intensities[i])
 
-        # Update edge colors
         drawn.set_edgecolor(edge_colors)
         return [drawn, title, timer_text]
 
@@ -420,30 +395,79 @@ if __name__ == "__main__":
         interval=200,
         blit=True
     )
-
+        
     ax.set_aspect('equal')
     plt.xlabel("X coordinate")
     plt.ylabel("Y coordinate")
     plt.tight_layout()
     plt.show()
 
-u, v = edge_example
 
-# Tabel with sample times
-if undirected_graph.has_edge(u, v):
-    edge_attrs = undirected_graph.edges[u, v]
-    records = []
 
-    for t in [t1, t2, t3, t4, t5, t6, t7, t8]:
-        records.append({
-            "Time (min)": t,
-            "Flow (veh/h)": get_flow(edge_attrs, t),
-            "Critical Density (veh/km)": get_critical_density(edge_attrs),
-            "Travel Time (min)": get_travel_time(edge_attrs, t),
-            "Speed in m/s" : get_speed(edge_attrs, t),
-            "Density(veh/km)" : get_density(edge_attrs,t),
-            "Capacity" : get_capacity(edge_attrs,t)
-        })
+# --- Save results to Excel in the specified format ---
+from openpyxl import load_workbook, Workbook
+from openpyxl.utils.dataframe import dataframe_to_rows
 
-    df = pd.DataFrame(records)
-    print(df)
+
+def save_results(ga_cost, runtime_seconds, route_start_t, num_vehicles):
+    """Save results to Excel in the specified format"""
+    results_path = os.path.join(os.getcwd(), "results.xlsx")
+    
+    # Convert sim_start to hours:minutes format
+    hours = route_start_t // 60
+    minutes = route_start_t % 60
+    route_start_t_label = f"route_start_t = {hours}:{minutes:02d}"
+
+    
+    try:
+        if os.path.exists(results_path):
+            df = pd.read_excel(results_path)
+        else:
+            df = pd.DataFrame()
+        
+        # Create new row
+        new_data = {
+            'route_start_t': route_start_t_label,
+            'num_vehicles':num_vehicles,
+            'test': len(df) + 1,
+            'traveltime': ga_cost,
+            'runtime': runtime_seconds
+        }
+        
+        new_row = pd.DataFrame([new_data])
+        df = pd.concat([df, new_row], ignore_index=True)
+        
+        df.to_excel(results_path, index=False)
+        print(f"✅ Results saved: {route_start_t_label}, Test {len(df)}")
+        
+    except Exception as e:
+        print(f"❌ Error: {e}")
+
+# FIXED: Only call the function once
+try:
+    save_results(ga_cost, runtime_seconds, route_start_t,num_vehicles)
+except Exception as e:
+    print(f"Error saving results: {e}")
+    # Simple fallback - just print the results
+    print(f"Results (not saved): Travel Time: {ga_cost:.2f}, Runtime: {runtime_seconds:.2f}")
+
+''' 
+    # Sample times table for edge_example
+    u, v = edge_example
+    if undirected_graph.has_edge(u, v):
+        edge_attrs = undirected_graph.edges[u, v]
+        records = []
+        for t in [t1, t2, t3, t4, t5, t6, t7, t8]:
+            records.append({
+                "Time (min)": t,
+                "Flow (veh/h)": get_flow(edge_attrs, t),
+                "Critical Density (veh/km)": get_critical_density(edge_attrs),
+                "Travel Time (min)": get_travel_time(edge_attrs, t),
+                "Speed in m/s": get_speed(edge_attrs, t),
+                "Density(veh/km)": get_density(edge_attrs, t),
+                "Capacity": get_capacity(edge_attrs, t)
+            })
+        df = pd.DataFrame(records)
+        print(df)
+'''
+
