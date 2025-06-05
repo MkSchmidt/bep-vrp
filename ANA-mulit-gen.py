@@ -285,51 +285,70 @@ if __name__ == "__main__":
         memoized_travel_times[cache_key] = duration
         return duration
 
-    # Run BSO-LNS solver
-    bso_solver = BSOLNS(
+        # 5) Instantiate GA_DP, passing exactly those arguments:
+    ga_solver = GA_DP(
         travel_time_fn=td_travel_time_wrapper,
-        demands=customer_demands,
+        travel_distance_fn=travel_distance_fn,
+        demands=demands_dict,
+        num_vehicles=num_vehicles,
         vehicle_capacity=vehicle_capacity,
-        start_time=route_start_t,
-        pop_size=pop_size,
-        n_clusters=n_clusters,
-        ideas_per_cluster=ideas_per_cluster,
-        max_iter=max_iter,
-        remove_rate=remove_rate
+        period_breaks=period_breaks,
+        # No time windows here, so just {}:
+        time_windows={},
+        # (You can tune pop_size, max_gens, etc. as you wish)
+        pop_size=50,
+        max_gens=100,
+        tournament_size=2,
+        crossover_rate=0.9,
+        mutation_rate=0.2,
+        elite_count=2,
+        start_time=30*60  # if your “route_start_t” is 15:30 (in minutes, that’s 30*60), else use the same
     )
-    best_solution = bso_solver.run()
-    print(f"BSO-LNS final best cost: {best_solution['cost']:.2f}, Routes: {best_solution['sol']}")
 
-    # Reconstruct the BSO solution path for animation
-    bso_solution_routes = best_solution['sol']
-    bso_edges_for_animation = {}
+    # 6) Run the GA_DP solver
+    (giant_tour, split_indices), ga_cost = ga_solver.run()
+    print(f"GA_DP final cost: {ga_cost:.2f}, giant_tour: {giant_tour}, splits: {split_indices}")
 
-    # FIXED: use a fresh t = route_start_t per route, store both (u,v) and (v,u)
-    for route in bso_solution_routes:
-        t = route_start_t  # each vehicle leaves at 15:30
+    # 7) Split the giant_tour into per‐vehicle routes, exactly as GA_DP._evaluate does:
+    routes = []
+    prev = 0
+    for split in split_indices:
+        routes.append(giant_tour[prev:split])
+        prev = split
+    routes.append(giant_tour[prev:])
+    while len(routes) < num_vehicles:
+        routes.append([])
+
+    # 8) Now we can “reconstruct” each route’s (node-by-node) travel times,
+    # exactly as you did for BSO‐LNS. We’ll store them in ga_edges_for_animation.
+    # Note: the GA’s “route” is a list of actual node IDs [e.g. 386, 370, …]. But GA_DP
+    #    interpreted “0” as depot internally, so here we prepend the depot if needed.
+    ga_edges_for_animation = {}
+    route_start_t = 30*60  # 15:30 in minutes, as before
+    for route_idx, route in enumerate(routes):
+        t = route_start_t
         current_node = depot_node_id
-
-        # From depot → each customer in route
-        for cust_bso_idx in route:
-            dest_node = bso_nodes_map[cust_bso_idx]
-            path_nodes = dynamic_dijkstra(undirected_graph, current_node, dest_node, t)
-            if not path_nodes:
+        # For each customer node in the sequence, run dynamic_dijkstra from current_node→cust
+        for cust_node in route:
+            path_nodes = dynamic_dijkstra(undirected_graph, current_node, cust_node, t)
+            if not path_nodes:  # if no path found
                 break
             seg_times = arrival_times_for_path(undirected_graph, path_nodes, t)
             for (u, v), entry in seg_times.items():
-                bso_edges_for_animation[(u, v)] = entry
-                bso_edges_for_animation[(v, u)] = entry
-            t = undirected_graph.nodes[dest_node]["arrival_time"]
-            current_node = dest_node
+                ga_edges_for_animation[(u, v)] = entry
+                ga_edges_for_animation[(v, u)] = entry
+            t = undirected_graph.nodes[cust_node]["arrival_time"]
+            current_node = cust_node
 
-        # Final leg: last customer → depot
+        # Then return to depot if not already there:
         if current_node != depot_node_id:
             path_back = dynamic_dijkstra(undirected_graph, current_node, depot_node_id, t)
             if path_back:
                 seg_times = arrival_times_for_path(undirected_graph, path_back, t)
                 for (u, v), entry in seg_times.items():
-                    bso_edges_for_animation[(u, v)] = entry
-                    bso_edges_for_animation[(v, u)] = entry
+                    ga_edges_for_animation[(u, v)] = entry
+                    ga_edges_for_animation[(v, u)] = entry
+
 
     # Update function for animation
     def update_frame(frame_minutes_offset):
