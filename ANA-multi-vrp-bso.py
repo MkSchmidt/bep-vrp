@@ -13,16 +13,16 @@ from BsoLns_imp import BSOLNS
 import mplcursors
 
 # Define BSO-LNS Problem: Depot and Customers
-depot_node_id = 1  # 918 
-customer_node_ids = [2, 4, 5, 123, 210, 350, 123, 300]
+depot_node_id = 406   
+customer_node_ids = [386 ,370 , 17 ,267 ,303, 321,305]
 time_step_minutes = 10  # mins
 sim_start = 0 * 60  # 6:00
-route_start_t = 8 * 60 + 30  # 15:30 (in minutes)
-num_vehicles = 4
+route_start_t = 0 * 60 + 30  # 15:30 (in minutes)
+num_vehicles = 2
 n_demand = [1] * len(customer_node_ids)  #Demand per customer
 total_demand = sum(n_demand)
 vehicle_capacity = math.ceil(total_demand / num_vehicles)
-B =0.15
+B = 0.15
 edge_example = 12 ,275 
 
 
@@ -31,11 +31,11 @@ t1, t2, t3, t4 = 6.5 * 60, 8.5 * 60, 10 * 60, 12 * 60
 t5, t6, t7, t8 = 16.5 * 60, 18 * 60, 20 * 60, 22 * 60
 
 # Parameters for BSO
-pop_size = 10
+pop_size = 20
 n_clusters = 3
-ideas_per_cluster = 5
-max_iter = 1
-remove_rate = 0.3
+ideas_per_cluster = 2
+max_iter = 10
+remove_rate = 0.5
 
 # Function to build graph
 def graph_from_data(edges: pd.DataFrame, nodes: pd.DataFrame) -> nx.DiGraph:
@@ -82,10 +82,11 @@ def demand(t: float) -> float:
 # --- Congestion Model Based on Demand ---
 def get_flow(attrs: dict, t_min: float) -> float:
     volume = attrs.get("volume", 0)
-    return volume * demand(t_min)
+    return volume * demand(t_min) * 10 
+
 def get_capacity(attrs: dict, t_min: float) -> float:
     capacity = attrs.get("capacity")
-    return capacity
+    return capacity 
 
 # Determine Critical Density for each edge
 def get_critical_density(attrs: dict):
@@ -108,7 +109,7 @@ def get_density(attrs: dict, t_min):
 
 # Travel time bepalen
 def get_travel_time(attrs: dict, t_min):
-    capacity = attrs.get("capacity")                       #[veh/h]
+    capacity = attrs.get("capacity")                    #[veh/h]
     free_time_min = attrs.get("free_flow_time")            #[min]
     critical_density = get_critical_density(attrs)         #[veh/km]
     density = get_density(attrs,t_min)                     #[veh/km]
@@ -134,10 +135,7 @@ def congestion_time(attrs: dict, t_min):
     flow = get_flow(attrs, t_min)                          #[veh/h]
     beta = 4            #[veh/h]
     B = 0.15
-    if density <= critical_density:
-        return 0
-    else:
-        return free_time_min * B* (flow/capacity)**beta     #[min]
+    return free_time_min * (B* (flow/capacity)**beta)     #[min]
 
 
 def get_node_sequence(graph: nx.DiGraph, end: int) -> list:
