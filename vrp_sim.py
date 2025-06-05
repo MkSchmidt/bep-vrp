@@ -5,14 +5,13 @@ import networkx as nx
 from itertools import pairwise
 
 class TrafficSim:
-    def __init__(self, edges: pd.DataFrame, nodes: Optional[pd.DataFrame] = None):
+    def __init__(self, edges: pd.DataFrame, flows: pd.DataFrame):
         self.G = nx.DiGraph()
-        if nodes is not None:
-            coords = {row["node"]: (row["x"], row["y"]) for row in nodes.to_dict('records')}
-            for node, xy in coords.items():
-                self.G.add_node(node, coordinates=xy)
         for row in edges.to_dict('records'):
-            self.G.add_edge(row["init_node"], row["term_node"], **row)
+            self.G.add_edge(row["init_node"], row["term_node"], volume=0, **row)
+        for row in flows.to_dict("records"):
+            self.G.edges[row["from"], row["to"]]["volume"] = row["volume"]
+            self.G.edges[row["to"], row["from"]]["volume"] = row["volume"]
     
     def get_route_travel_time(self, route: list[int], t_start: float = 3600*8) -> float:
         head = self._get_edge_travel_time(route[0], route[1], t_start)
