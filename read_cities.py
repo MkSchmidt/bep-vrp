@@ -5,10 +5,10 @@ def read_chicago():
     edges, nodes, trips, flows = read_folder(os.path.join(project_root, "TransportationNetworks", "Chicago-Sketch"))
 
     def get_parameters_chic(attrs):
-        length = attrs.get("length") * 1.6093/1000              #[m]
+        length = attrs.get("length") * 1609.3                   #[m]
         ff_time = attrs.get("free_flow_time") *60               #[s]
-        capacity = attrs.get("capacity") /3600                  #[veh/s]
-        flow = attrs.get("volume")/3600                         #[veh/s]
+        capacity = attrs.get("capacity") / 3600                 #[veh/s]
+        flow = attrs.get("volume") / 3600                       #[veh/s]
         return length, ff_time,capacity ,flow
     
     # Update edges with new parameters
@@ -28,8 +28,8 @@ def read_anaheim():
 
     def get_parameters_ana(attrs):
         length = attrs.get("length") * 0.3048            #[m]
-        ff_time = attrs.get("free_flow_time") *60        #[s]
-        capacity = attrs.get("capacity") /3600           #[veh/s]
+        ff_time = attrs.get("free_flow_time") * 60       #[s]
+        capacity = attrs.get("capacity") / 3600          #[veh/s]
         flow = attrs.get("volume")/3600                  #[veh/s]
         return length, ff_time, capacity, flow
     
@@ -43,5 +43,3 @@ def read_anaheim():
         edge['flow'] = flow
 
     return edges, nodes, trips, flows
-
-    pass
