@@ -32,8 +32,8 @@ class TrafficSim:
         attrs = self.G.edges[source, dest]
         free_time = attrs.get("free_flow_time")
         critical_density = self._get_critical_density(source, dest)
-        density = self._get_density(source, dest, t_min)
-        flow = self._get_flow(source, dest, t_min)
+        density = self._get_density(source, dest, t)
+        flow = self._get_flow(source, dest, t)
         if density <= critical_density:
             travel_time = free_time
         else:
@@ -44,7 +44,7 @@ class TrafficSim:
         attrs = self.G.edges[source, dest]
         length = attrs.get("length")
         free_time = attrs.get("free_flow_time")
-        flow = self._get_flow(source, dest, t_min)
+        flow = self._get_flow(source, dest, t)
         free_speed = (length / free_time)
         return flow / free_speed
 
@@ -80,8 +80,8 @@ class VRP:
             if route[0] != self.depot or route[-1] != self.depot:
                 return False
             route_set = set(route)
-            if len(customers_visited & route) > 0:
+            if len(customers_visited & route_set) > 0:
                 return False
-            customers_visited = customers_visited & route - {depot,}
+            customers_visited = customers_visited & route_set - {depot,}
 
         return len(self.customers ^ customers_visited) == 0
