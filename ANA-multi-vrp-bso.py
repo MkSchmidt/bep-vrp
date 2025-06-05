@@ -14,15 +14,16 @@ import mplcursors
 
 # Define BSO-LNS Problem: Depot and Customers
 depot_node_id = 1  # 918 
-customer_node_ids = [2, 4, 5, 123, 911, 210, 350, 123, 456, 300]
+customer_node_ids = [2, 4, 5, 123, 210, 350, 123, 300]
 time_step_minutes = 10  # mins
 sim_start = 0 * 60  # 6:00
 route_start_t = 8 * 60 + 30  # 15:30 (in minutes)
 num_vehicles = 4
-n_demand = [1] * len(customer_node_ids)  # Demand per customer
+n_demand = [1] * len(customer_node_ids)  #Demand per customer
 total_demand = sum(n_demand)
 vehicle_capacity = math.ceil(total_demand / num_vehicles)
 B =0.15
+edge_example = 12 ,275 
 
 
 # Time-breakpoints demand function
@@ -82,25 +83,28 @@ def demand(t: float) -> float:
 def get_flow(attrs: dict, t_min: float) -> float:
     volume = attrs.get("volume", 0)
     return volume * demand(t_min)
+def get_capacity(attrs: dict, t_min: float) -> float:
+    capacity = attrs.get("capacity")
+    return capacity
 
 # Determine Critical Density for each edge
 def get_critical_density(attrs: dict):
-    capacity = attrs.get("capacity")                    #[veh/h]           
-    free_time = attrs.get("free_flow_time") / 60        #[h]
-    free_time = 1.667/60 if free_time == 0 else free_time  # Neighboorhoodroads, dont have Free_flow_time in Data ---> ~30 km/h
-    length = attrs.get("length")/1.6093                 #[km]
-    free_speed = length/ free_time                      #[km/h]
-    return capacity / free_speed                        #[veh/km] 
+    capacity = attrs.get("capacity")                    #[veh/h]
+    free_time = attrs.get("free_flow_time")/60          #[h]
+    free_time = 1.667 if free_time == 0 else free_time # Neighboorhoodroads, dont have Free_flow_time in Data ---> ~30 km/h
+    length = attrs.get("length")* 0.3048/1000           #[km]
+    ff_speed = length / free_time                       #[km/h]
+    return capacity / ff_speed                          #[veh/km]
 
 # Determine Density of each edge
 def get_density(attrs: dict, t_min):
-    flow = get_flow(attrs, t_min)                       #[veh/h]
-    free_time = attrs.get("free_flow_time") /60         #[h]
-    free_time = 1.6667/60 if free_time ==0 else free_time  # Neighboorhoodroads, dont have Free_flow_time in Data ---> ~30 km/h
-    length = attrs.get("length") /1.6093                #[km]
-    free_speed = (length / free_time)                   #[km/h] 
-    density = flow / free_speed                         #[veh/km]
-    return density
+    flow = get_flow(attrs, t_min)                        #[veh/h]
+    free_time = attrs.get("free_flow_time")/60           #[h]
+    free_time = 1.6667 if free_time ==0 else free_time   # Neighboorhoodroads, dont have Free_flow_time in Data ---> ~30 km/h
+    length = attrs.get("length") * 0.3048/1000           #[km]
+    free_speed = (length / free_time)                    #[km/h] 
+    density = flow / free_speed                          #[veh/h]
+    return density                                       #[veh/h]
 
 # Travel time bepalen
 def get_travel_time(attrs: dict, t_min):
@@ -111,20 +115,24 @@ def get_travel_time(attrs: dict, t_min):
     flow = get_flow(attrs, t_min)                          #[veh/h]
     beta = 4
     B = 0.15
-    if density <= critical_density:
-        travel_time = free_time_min
-    else:
-        travel_time = free_time_min * (1 + B* (flow/capacity)**beta)   
+    travel_time = free_time_min * (1 + B* (flow/capacity)**beta)   #[min]
     return travel_time
 
-# Congestiontime
+# Determine the speed over each edge
+def get_speed(attrs,t_min):
+    length = attrs.get("length")* 0.3048                     #[m]
+    travel_time = get_travel_time(attrs,t_min)  *60   #[s]
+    return (length / travel_time)                            #[m/s]
+
+
+# Congestiontime ---- Needed for Visualization
 def congestion_time(attrs: dict, t_min):
     capacity = attrs.get("capacity")                       #[veh/h]
     free_time_min = attrs.get("free_flow_time")            #[min]
     critical_density = get_critical_density(attrs)         #[veh/km]
     density = get_density(attrs,t_min)                     #[veh/km]
     flow = get_flow(attrs, t_min)                          #[veh/h]
-    beta = 4                                               
+    beta = 4            #[veh/h]
     B = 0.15
     if density <= critical_density:
         return 0
@@ -198,7 +206,7 @@ def get_route_colors(num_routes):
 if __name__ == "__main__":
     # Load Network data
     edges_df, nodes_df, trips_df, flow_df = read_folder(
-        os.path.join(project_root, "TransportationNetworks", "Chicago-Sketch")
+        os.path.join(project_root, "TransportationNetworks", "Anaheim")
     )
 
     # Build directed and undirected graphs
@@ -383,3 +391,24 @@ if __name__ == "__main__":
     plt.ylabel("Y coordinate")
     plt.tight_layout()
     plt.show()
+
+u, v = edge_example
+
+# Tabel with sample times
+if undirected_graph.has_edge(u, v):
+    edge_attrs = undirected_graph.edges[u, v]
+    records = []
+
+    for t in [t1, t2, t3, t4, t5, t6, t7, t8]:
+        records.append({
+            "Time (min)": t,
+            "Flow (veh/h)": get_flow(edge_attrs, t),
+            "Critical Density (veh/km)": get_critical_density(edge_attrs),
+            "Travel Time (min)": get_travel_time(edge_attrs, t),
+            "Speed in m/s" : get_speed(edge_attrs, t),
+            "Density(veh/km)" : get_density(edge_attrs,t),
+            "Capacity" : get_capacity(edge_attrs,t)
+        })
+
+    df = pd.DataFrame(records)
+    print(df)
