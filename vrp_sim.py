@@ -31,13 +31,15 @@ class TrafficSim:
     def _get_edge_travel_time(self, source: int, dest: int, t: float) -> float:
         attrs = self.G.edges[source, dest]
         free_time = attrs.get("free_flow_time")
+        B = attrs.get("b")
         critical_density = self._get_critical_density(source, dest)
         density = self._get_density(source, dest, t)
         flow = self._get_flow(source, dest, t)
         if density <= critical_density:
             travel_time = free_time
         else:
-            travel_time = free_time + (density - critical_density) * B
+            # travel_time = free_time + (density - critical_density) * B
+            travel_time = free_time * (1 + (B*flow/capacity)**4)
         return travel_time
     
     def _get_density(self, source: int, dest: int, t: float) -> float:
