@@ -9,7 +9,7 @@ from matplotlib import pyplot as plt, animation
 from read_files import (
     load_edgefile, load_flowfile,
     load_nodefile, project_root, read_folder)
-from BsoLns_imp import BSOLNS 
+from GA_imp import GA_DP 
 import mplcursors
 
 # Define BSO-LNS Problem: Depot and Customers
@@ -20,6 +20,8 @@ sim_start = 0 * 60  # 6:00
 route_start_t = 0 * 60 + 30  # 15:30 (in minutes)
 num_vehicles = 2
 n_demand = [1] * len(customer_node_ids)  #Demand per customer
+n_demand = [1] * len(customer_node_ids)
+demands_dict = {customer_node_ids[i]: n_demand[i] for i in range(len(customer_node_ids))}
 total_demand = sum(n_demand)
 vehicle_capacity = math.ceil(total_demand / num_vehicles)
 B = 0.15
@@ -29,13 +31,10 @@ edge_example = 12 ,275
 # Time-breakpoints demand function
 t1, t2, t3, t4 = 6.5 * 60, 8.5 * 60, 10 * 60, 12 * 60
 t5, t6, t7, t8 = 16.5 * 60, 18 * 60, 20 * 60, 22 * 60
+period_breaks = sorted([0, t1, t2, t3, t4, t5, t6, t7, t8, 24*60])
 
-# Parameters for BSO
-pop_size = 20
-n_clusters = 3
-ideas_per_cluster = 2
-max_iter = 10
-remove_rate = 0.5
+# Parameters for GA
+
 
 # Function to build graph
 def graph_from_data(edges: pd.DataFrame, nodes: pd.DataFrame) -> nx.DiGraph:
@@ -78,6 +77,14 @@ def demand(t: float) -> float:
         return low + (high - low) * (1 - (t - t7) / (t8 - t7))
     else:
         return low
+
+def travel_distance_fn(u, v):
+    # Compute shortest‐path (in km) by summing (length_feet * 0.3048 / 1000)
+    path_nodes = nx.shortest_path(undirected_graph, source=u, target=v, weight="length")
+    dist_m = sum(undirected_graph.edges[path_nodes[i], path_nodes[i+1]]["length"] * 0.3048
+                 
+             for i in range(len(path_nodes)-1))
+    return dist_m / 1000.0  # kilometers
 
 # --- Congestion Model Based on Demand ---
 def get_flow(attrs: dict, t_min: float) -> float:
@@ -324,7 +331,7 @@ if __name__ == "__main__":
     # Note: the GA’s “route” is a list of actual node IDs [e.g. 386, 370, …]. But GA_DP
     #    interpreted “0” as depot internally, so here we prepend the depot if needed.
     ga_edges_for_animation = {}
-    route_start_t = 30*60  # 15:30 in minutes, as before
+
     for route_idx, route in enumerate(routes):
         t = route_start_t
         current_node = depot_node_id
@@ -372,14 +379,14 @@ if __name__ == "__main__":
         ]
 
         # Assign distinct colors per route
-        num_routes = len(bso_solution_routes)
+        num_routes = len(routes)
         route_colors = get_route_colors(num_routes)
 
         # Build edge_colors (one color per edge)
         edge_colors = []
         for i, (u, v) in enumerate(edges):
-            t_uv = bso_edges_for_animation.get((u, v), float("inf"))
-            t_vu = bso_edges_for_animation.get((v, u), float("inf"))
+            t_uv = ga_edges_for_animation.get((u, v), float("inf"))
+            t_vu = ga_edges_for_animation.get((v, u), float("inf"))
             route_color = None
             for route_idx in range(num_routes):
                 if t_uv <= current_sim_time or t_vu <= current_sim_time:
