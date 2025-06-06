@@ -12,18 +12,17 @@ from read_files import (
 from BsoLns_imp import BSOLNS 
 import mplcursors
 import vrp_sim as vs
+from read_cities import read_anaheim
 
 # Define BSO-LNS Problem: Depot and Customers
 depot_node_id = 406   
 customer_node_ids = [386 ,370 , 17 ,267 ,303, 321,305]
-time_step_minutes = 10  # mins
-sim_start = 0 * 60  # 6:00
-route_start_t = 0 * 60 + 30  # 15:30 (in minutes)
+sim_start = 6 * 60 * 60  # 6:00
+route_start_t = (15 * 60 + 30)*60  # 15:30 (in seconds)
 num_vehicles = 2
 n_demand = [1] * len(customer_node_ids)  #Demand per customer
 total_demand = sum(n_demand)
 vehicle_capacity = math.ceil(total_demand / num_vehicles)
-B = 0.15
 edge_example = 12 ,275 
 
 
@@ -35,7 +34,7 @@ t5, t6, t7, t8 = 16.5 * 60, 18 * 60, 20 * 60, 22 * 60
 pop_size = 20
 n_clusters = 3
 ideas_per_cluster = 2
-max_iter = 10
+max_iter = 1
 remove_rate = 0.5
 
 def arrival_times_for_path(graph: nx.DiGraph, path: list, start_t: float) -> dict:
@@ -58,9 +57,7 @@ def get_route_colors(num_routes):
 
 if __name__ == "__main__":
     # Load Network data
-    edges_df, nodes_df, trips_df, flow_df = read_folder(
-        os.path.join(project_root, "TransportationNetworks", "Anaheim")
-    )
+    edges_df, nodes_df, trips_df, flow_df = read_anaheim()
 
     sim = vs.TrafficSim(edges_df, flow_df, nodes=nodes_df)
 
@@ -171,7 +168,7 @@ if __name__ == "__main__":
 
     # Update function for animation
     def update_frame(frame_minutes_offset):
-        current_sim_time = sim_start + frame_minutes_offset
+        current_sim_time = (sim_start + frame_minutes_offset)*60
 
         # Update title & timer text
         h, m = divmod(current_sim_time, 60)
@@ -217,7 +214,7 @@ if __name__ == "__main__":
     ani = animation.FuncAnimation(
         fig,
         update_frame,
-        frames=range(0, 24 * 60 - sim_start, 15),
+        frames=range(0, 24 * 60 - sim_start // 60, 15),
         interval=200,
         blit=True
     )
@@ -227,3 +224,22 @@ if __name__ == "__main__":
     plt.ylabel("Y coordinate")
     plt.tight_layout()
     plt.show()
+
+
+u, v = edge_example
+
+# Tabel with sample times
+if sim.G.has_edge(u, v):
+    edge_attrs = sim.G.edges[u, v]
+    records = []
+
+    for t in [t1, t2, t3, t4, t5, t6, t7, t8]:
+        records.append({
+            "Time (min)": t,
+            "Flow (veh/s)": sim._get_flow(u,v, t*60),
+            "Congestion time": sim.get_edge_congestion_time(u, v, t*60),
+            "Capacity" : edge_attrs["capacity"]
+        })
+
+    df = pd.DataFrame(records)
+    print(df)
