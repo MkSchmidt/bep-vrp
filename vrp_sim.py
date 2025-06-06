@@ -6,12 +6,16 @@ import networkx as nx
 from itertools import pairwise
 
 class TrafficSim:
-    def __init__(self, edges: pd.DataFrame, flows: pd.DataFrame):
+    def __init__(self, edges: pd.DataFrame, flows: pd.DataFrame, nodes: Optional[pd.DataFrame] = None):
         self.G = nx.Graph()
         for row in edges.to_dict('records'):
             self.G.add_edge(row["init_node"], row["term_node"], volume=0, **row)
         for row in flows.to_dict("records"):
             self.G.edges[row["from"], row["to"]]["volume"] = row["volume"]
+        if nodes is not None:
+            for node in nodes.to_dict("records"):
+                self.G.nodes["id"]["x"] = node["x"]
+                self.G.nodes["id"]["y"] = node["y"]
     
     def get_route_travel_time(self, route: list[int], t_start: float = 3600*8) -> float:
         _, head = self._dynamic_dijkstra(route[0], route[1], t_start)
