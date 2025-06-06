@@ -1,7 +1,7 @@
 import os
 import math
 import random
-
+from typing import Optional
 import numpy as np
 import pandas as pd
 import networkx as nx
@@ -115,7 +115,7 @@ def get_node_sequence(graph, end):
     previous = graph.nodes[end]["previous"]
     if previous is None:
         return [end]
-    return get_node_sequence(graph, prev) + [end]
+    return get_node_sequence(graph, previous) + [end]
 
 # Run a dynamic Dijsktra algorithm
 

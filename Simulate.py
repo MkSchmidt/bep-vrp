@@ -12,5 +12,5 @@ def cust_str(n):
     customers_int = random.sample(range(1, 417), n)
     customers_str = [ str(customer) for customer in customers_int]
     return  customers_str
-GAmain(anaheim_cfg, anaheim_net, str(random.randint(1,417)), cust_str(7), 2)
+#GAmain(anaheim_cfg, anaheim_net, str(random.randint(1,417)), cust_str(7), 2)
 BSOmain(anaheim_cfg, anaheim_net, str(random.randint(1,417)), cust_str(7), 2)
