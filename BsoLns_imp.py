@@ -143,6 +143,7 @@ class BSOLNS:
     def run(self):
         population = self.initialize_population()
         best = min(population, key=lambda x: x['cost'])
+        best_history = []
 
         for it in range(self.max_iter):
             clusters = self.cluster_population(population)
@@ -162,7 +163,8 @@ class BSOLNS:
             current_best = min(population, key=lambda x: x['cost'])
             if current_best['cost'] < best['cost']:
                 best = current_best
+            best_history.append(current_best["cost"])
 
             print(f"Iter {it+1}/{self.max_iter}, Best Cost: {best['cost']:.2f}")
 
-        return best
+        return best, best_history
