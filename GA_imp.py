@@ -11,9 +11,9 @@ class GA_DP:
                      #     Returns travel time (minutes) from u→v when departing at depart_time.
                  travel_distance_fn,
                      # function(u: int, v: int) → float
-                     #     Returns distance (km) from u→v.  # still needed for DP (to compute speed, if desired)
+                     #     Returns distance (km) from u→v.
                  demands,
-                     # dict[int → float]: customer node ID → demand. Depot is assumed ID 0.
+                     # dict[int → float]: customer node ID → demand. Depot is given separately.
                  num_vehicles,
                      # int: total number of identical vehicles.
                  vehicle_capacity,
@@ -24,9 +24,9 @@ class GA_DP:
                  # 2. Time‐period discretization & emission model
                  # ────────────────────────────────────────────────────────────────────────────
                  period_breaks=None,
-                     # list[float]: time‐points in minutes. (Still required for the DP indices.)
+                     # list[float]: time‐points in minutes. Required for the DP indices.
                  emission_fn=None,  # not used if travel_time only
-                     # function(weight_kg, speed_kmh) → emission rate. (ignored in pure travel-time mode.)
+                     # function(weight_kg, speed_kmh) → emission rate. (ignored here).
                  # ────────────────────────────────────────────────────────────────────────────
                  # 3. Genetic‐Algorithm hyperparameters
                  # ────────────────────────────────────────────────────────────────────────────
@@ -36,10 +36,21 @@ class GA_DP:
                  crossover_rate=0.9,
                  mutation_rate=0.2,
                  elite_count=2,
-                 start_time=0.0, 
+                 start_time=0.0,
+                 # ────────────────────────────────────────────────────────────────────────────
+                 # 4. Depot node ID
                  depot_node_id=0):
         """
-        (Modified so that splits are fixed based on equal‐division of N customers across V vehicles.)
+        GA + Time‐indexed DP for VRP.
+
+        travel_time_fn: (u: int, v: int, depart_time: float) → float (minutes)
+        travel_distance_fn: (u: int, v: int) → float (km)
+        demands: dict[node_id → demand]
+        num_vehicles: number of vehicles
+        vehicle_capacity: capacity per vehicle
+        period_breaks: sorted list of time‐breakpoints in minutes
+        start_time: departure time for all vehicles (in minutes)
+        depot_node_id: actual graph node ID of depot
         """
         # 1. Graph + demand
         self.travel_time = travel_time_fn
@@ -52,12 +63,12 @@ class GA_DP:
         self.time_windows = {} if time_windows is None else time_windows
         self.depot_node_id = depot_node_id
 
-        # 2. Time‐period discretization (still required)
+        # 2. Time‐period discretization (required for DP)
         if period_breaks is None:
             raise ValueError("period_breaks must be provided.")
         self.period_breaks = period_breaks
 
-        # emission_fn kept for signature compatibility; not used if we accumulate travel_time
+        # 2b. Emission function (not used here)
         self.emission_fn = emission_fn
 
         # 3. GA hyperparameters
@@ -68,26 +79,17 @@ class GA_DP:
         self.mutation_rate = mutation_rate
         self.elite_count = elite_count
         self.start_time = start_time
-        
 
-        # ────────────────────────────────────────────────────────────────────────────
-        # 4. Compute fixed splits so that routes sizes differ by at most 1
-        # ────────────────────────────────────────────────────────────────────────────
-        # Let N = total customers, V = num_vehicles.
-        # Compute s = N // V, r = N % V. Then r routes have size (s+1), and (V-r) have size s.
+        # 4. Compute fixed splits so that route sizes differ by at most 1
         s = self.N // self.num_vehicles
         r = self.N % self.num_vehicles
-        # Build a list of sizes: first r vehicles → size (s+1); next (V-r) vehicles → size s
         sizes = [s+1] * r + [s] * (self.num_vehicles - r)
-        # Now build split indices = cumulative sums of sizes, but skip the last (equal N)
         splits = []
         cum = 0
         for size in sizes[:-1]:
             cum += size
             splits.append(cum)
         self.fixed_splits = splits
-        # e.g. if N=7, V=2 → s=3, r=1 → sizes=[4,3] → splits=[4]
-        #      if N=9, V=3 → s=3, r=0 → sizes=[3,3,3] → splits=[3,6]
 
     def run(self):
         """
@@ -115,7 +117,6 @@ class GA_DP:
                 if random.random() < self.crossover_rate:
                     child = self._ordered_crossover(parent1, parent2)
                 else:
-                    # Copy parent1’s tour; splits are always fixed so we ignore parent1[1]
                     child = (parent1[0][:], self.fixed_splits[:])
                 child = self._mutate(child)
                 new_population.append(child)
@@ -140,7 +141,6 @@ class GA_DP:
         population = []
         for _ in range(self.pop_size):
             tour = random.sample(self.customer_ids, self.N)
-            # Every chromosome uses the same fixed splits
             splits = self.fixed_splits[:]
             population.append((tour, splits))
         return population
@@ -151,67 +151,61 @@ class GA_DP:
         splitting the giant tour according to self.fixed_splits.
         """
         giant_tour, split_indices = solution
-        # 1. Split giant_tour into routes using fixed_splits
+        # 1. Split giant_tour into routes
         routes = []
         prev = 0
         for split in split_indices:
             routes.append(giant_tour[prev:split])
             prev = split
         routes.append(giant_tour[prev:])
-        # If fewer than num_vehicles (shouldn’t happen), pad with empty
         while len(routes) < self.num_vehicles:
             routes.append([])
 
         total_travel_time = 0.0
 
-        for v_idx, route in enumerate(routes):
+        for route in routes:
             if not route:
                 continue
-
             # 2. Enforce capacity (each route size ≤ capacity)
-            #    If pure “customers count,” capacity was set to ceil(N/V), so route length ≤ capacity.
             if len(route) > self.capacity:
-                # infeasible split → infinite cost
                 return float("inf")
-
-            # 3. Run DP to compute minimum travel time (minutes) for that subroute
-            travel_time_for_route, _ = self._dynamic_programming(route, v_idx)
+            # 3. Run DP to compute minimum travel time for that route
+            travel_time_for_route, _ = self._dynamic_programming(route)
             total_travel_time += travel_time_for_route
 
         return total_travel_time
 
-    def _dynamic_programming(self, route, vehicle_idx):
+    def _dynamic_programming(self, route):
         """
         Time‐indexed DP that returns (min_total_travel_time, schedule).
         - route: list of customer IDs (ints).
-        - schedule: dict[node → (arrival_min, depart_min)] (may be used downstream).
         """
+        # Replace zeros with actual depot_node_id
         nodes = [self.depot_node_id] + route + [self.depot_node_id]
         n = len(nodes)
         T = len(self.period_breaks) - 1
-
         INF = float("inf")
-        # DP[k][p] = minimum cumulative travel time when we have just served nodes[0..k]
-        # and we arrived in period p.
-        DP = [[INF]*T for _ in range(n)]
-        predecessor = [[None]*T for _ in range(n)]
 
-        # Initialization: at k=0 (depot), any p with period_breaks[p] ≥ start_time has cost=0
+        # DP[k][p] = minimum cumulative travel time when we have served nodes[0..k]
+        DP = [[INF] * T for _ in range(n)]
+        predecessor = [[None] * T for _ in range(n)]
+
+        # Initialization: at k=0 (depot), any p with break ≥ start_time has cost = 0
         for p in range(T):
             if self.period_breaks[p] >= self.start_time:
                 DP[0][p] = 0.0
 
         # Main DP loop
         for k in range(1, n):
-            u = nodes[k-1]
+            u = nodes[k - 1]
             v = nodes[k]
             for p_prev in range(T):
-                cost_so_far = DP[k-1][p_prev]
+                cost_so_far = DP[k - 1][p_prev]
                 if cost_so_far == INF:
                     continue
                 depart_time = self.period_breaks[p_prev]
 
-                # 1) travel time (minutes) from u→v if we depart at depart_time:
+                # 1) travel time from u → v departing at depart_time
                 travel_t = self.travel_time(u, v, depart_time)
                 if travel_t == INF:
                     continue
@@ -219,38 +213,37 @@ class GA_DP:
                 if arrival_time > self.period_breaks[-1]:
                     continue
 
-                # 2) determine period index p_curr for arrival_time
+                # 2) find period index for arrival_time
                 idx = bisect.bisect_right(self.period_breaks, arrival_time) - 1
                 if idx < 0:
                     continue
-                p_curr = min(idx, T-1)
+                p_curr = min(idx, T - 1)
 
-                # 3) cost increment = travel_t (minutes)
+                # 3) new cumulative cost
                 new_cost = cost_so_far + travel_t
-
                 if new_cost < DP[k][p_curr]:
                     DP[k][p_curr] = new_cost
                     predecessor[k][p_curr] = p_prev
 
-        # Find best end‐state at k = n-1
+        # Find best end‐state at k = n - 1
         min_time = INF
         best_p_end = None
         for p in range(T):
-            if DP[n-1][p] < min_time:
-                min_time = DP[n-1][p]
+            if DP[n - 1][p] < min_time:
+                min_time = DP[n - 1][p]
                 best_p_end = p
 
         if best_p_end is None:
             return INF, {}
 
-        # Reconstruct schedule by backtracking
+        # Reconstruct schedule by backtracking (not strictly needed here)
         schedule = {}
         k = n - 1
         p = best_p_end
         while k >= 0:
             node = nodes[k]
             arr_time = self.period_breaks[p]
-            dep_time = arr_time if k < n-1 else None
+            dep_time = arr_time if k < n - 1 else None
             schedule[node] = (arr_time, dep_time)
             prev_p = predecessor[k][p]
             k -= 1
@@ -260,13 +253,12 @@ class GA_DP:
 
     def _tournament_selection(self, population, fitnesses):
         """
-        Always select at least one individual, even if all fitnesses are equal/infinite.
+        Select one parent via tournament (size = self.tournament_size).
         """
         best = None
         best_fit = float("inf")
         for _ in range(self.tournament_size):
             i = random.randrange(len(population))
-            # tie‐breaking: use ≤ so best gets set even if fitnesses[i] == best_fit
             if fitnesses[i] <= best_fit:
                 best_fit = fitnesses[i]
                 best = population[i]
@@ -274,32 +266,34 @@ class GA_DP:
 
     def _ordered_crossover(self, parentA, parentB):
         """
-        Crossover only on the giant_tour; enforce child_splits = fixed_splits.
+        Crossover on the giant_tour only; splits remain fixed.
         """
         tourA, _ = parentA
         tourB, _ = parentB
         size = len(tourA)
         a, b = sorted(random.sample(range(size), 2))
-        child_tour = [None]*size
+        child_tour = [None] * size
+
         # Copy subsequence from A[a:b]
         for i in range(a, b):
             child_tour[i] = tourA[i]
+        # Fill remaining from B
         fill_positions = [i for i in range(size) if i < a or i >= b]
         ptr = 0
         for gene in tourB:
             if gene not in tourA[a:b]:
                 child_tour[fill_positions[ptr]] = gene
                 ptr += 1
-        # Splits are always fixed
+
         child_splits = self.fixed_splits[:]
         return (child_tour, child_splits)
 
     def _mutate(self, solution):
         """
-        Mutation only swaps two genes in the giant_tour; splits remain fixed.
+        Mutation: swap two genes in the giant_tour; splits remain fixed.
         """
         tour, _ = solution
-        splits = self.fixed_splits[:]  # force splits back to fixed
+        splits = self.fixed_splits[:]
         if random.random() < self.mutation_rate:
             i, j = random.sample(range(len(tour)), 2)
             tour[i], tour[j] = tour[j], tour[i]
