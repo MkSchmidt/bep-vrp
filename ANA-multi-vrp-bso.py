@@ -238,7 +238,9 @@ if sim.G.has_edge(u, v):
             "Time (min)": t,
             "Flow (veh/s)": sim._get_flow(u,v, t*60),
             "Congestion time": sim.get_edge_congestion_time(u, v, t*60),
-            "Capacity" : edge_attrs["capacity"]
+            "Capacity" : edge_attrs["capacity"],
+            "demand factor" : sim._demand(t*60),
+            "Free flow" : edge_attrs["free_flow_time"]
         })
 
     df = pd.DataFrame(records)
