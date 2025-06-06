@@ -179,11 +179,11 @@ if __name__ == "__main__":
 
         # Compute congestion-based grayscale for every undirected edge
         added_travel_times = [
-            sim.get_edge_congestion_time(source, dest, current_sim_time)
+            sim.get_edge_congestion_time(source, dest, current_sim_time) / sim.G.edges[source, dest]["free_flow_time"]
             for source, dest in edges
         ]
         base_intensities = [
-            str(max(0.9 / 15 * (15 - tau), 0.0))
+            str(max(0.9 * (1 - tau), 0.0))
             for tau in added_travel_times
         ]
 
