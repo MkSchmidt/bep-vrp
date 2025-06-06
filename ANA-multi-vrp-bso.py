@@ -38,36 +38,6 @@ ideas_per_cluster = 2
 max_iter = 10
 remove_rate = 0.5
 
-# Travel time bepalen
-def get_travel_time(attrs: dict, t_min):
-    capacity = attrs.get("capacity")                    #[veh/h]
-    free_time_min = attrs.get("free_flow_time")            #[min]
-    critical_density = get_critical_density(attrs)         #[veh/km]
-    density = get_density(attrs,t_min)                     #[veh/km]
-    flow = get_flow(attrs, t_min)                          #[veh/h]
-    beta = 4
-    B = 0.15
-    travel_time = free_time_min * (1 + B* (flow/capacity)**beta)   #[min]
-    return travel_time
-
-# Determine the speed over each edge
-def get_speed(attrs,t_min):
-    length = attrs.get("length")* 0.3048                     #[m]
-    travel_time = get_travel_time(attrs,t_min)  *60   #[s]
-    return (length / travel_time)                            #[m/s]
-
-
-# Congestiontime ---- Needed for Visualization
-def congestion_time(attrs: dict, t_min):
-    capacity = attrs.get("capacity")                       #[veh/h]
-    free_time_min = attrs.get("free_flow_time")            #[min]
-    critical_density = get_critical_density(attrs)         #[veh/km]
-    density = get_density(attrs,t_min)                     #[veh/km]
-    flow = get_flow(attrs, t_min)                          #[veh/h]
-    beta = 4            #[veh/h]
-    B = 0.15
-    return free_time_min * (B* (flow/capacity)**beta)     #[min]
-
 def arrival_times_for_path(graph: nx.DiGraph, path: list, start_t: float) -> dict:
     times = {}
     t = start_t
@@ -77,7 +47,7 @@ def arrival_times_for_path(graph: nx.DiGraph, path: list, start_t: float) -> dic
         times[(u, v)] = t
         if graph.has_edge(v, u):
             times[(v, u)] = t
-        t += get_travel_time(graph.edges[u, v], t)
+        t += sim._get_edge_travel_time(u, v, t)
     return times
 
 # Function to assign distinct colors per route
@@ -100,7 +70,7 @@ if __name__ == "__main__":
 
     # Filter out any customer IDs not present
     customer_node_ids = [nid for nid in customer_node_ids if sim.G.has_node(nid)]
-    if not undirected_graph.has_node(depot_node_id):
+    if not sim.G.has_node(depot_node_id):
         raise ValueError(f"Depot node {depot_node_id} not in graph.")
     if len(customer_node_ids) < 1:
         raise ValueError("No customer nodes defined or found in graph.")
@@ -149,11 +119,7 @@ if __name__ == "__main__":
         cache_key = (u_actual, v_actual, depart_t)
         if cache_key in memoized_travel_times:
             return memoized_travel_times[cache_key]
-        path_nodes = dynamic_dijkstra(undirected_graph, u_actual, v_actual, depart_t)
-        if not path_nodes or path_nodes[-1] != v_actual:
-            return float('inf')
-        arrival_at_v = undirected_graph.nodes[v_actual]["arrival_time"]
-        duration = arrival_at_v - depart_t
+        path_nodes, duration = sim._dynamic_dijkstra(u_actual, v_actual, depart_t)
         memoized_travel_times[cache_key] = duration
         return duration
 
@@ -184,21 +150,21 @@ if __name__ == "__main__":
         # From depot → each customer in route
         for cust_bso_idx in route:
             dest_node = bso_nodes_map[cust_bso_idx]
-            path_nodes = dynamic_dijkstra(undirected_graph, current_node, dest_node, t)
+            path_nodes, duration = sim._dynamic_dijkstra(current_node, dest_node, t)
             if not path_nodes:
                 break
-            seg_times = arrival_times_for_path(undirected_graph, path_nodes, t)
+            seg_times = arrival_times_for_path(sim.G, path_nodes, t)
             for (u, v), entry in seg_times.items():
                 bso_edges_for_animation[(u, v)] = entry
                 bso_edges_for_animation[(v, u)] = entry
-            t = undirected_graph.nodes[dest_node]["arrival_time"]
+            t += duration
             current_node = dest_node
 
         # Final leg: last customer → depot
         if current_node != depot_node_id:
-            path_back = dynamic_dijkstra(undirected_graph, current_node, depot_node_id, t)
+            path_back, _ = sim._dynamic_dijkstra(current_node, depot_node_id, t)
             if path_back:
-                seg_times = arrival_times_for_path(undirected_graph, path_back, t)
+                seg_times = arrival_times_for_path(sim.G, path_back, t)
                 for (u, v), entry in seg_times.items():
                     bso_edges_for_animation[(u, v)] = entry
                     bso_edges_for_animation[(v, u)] = entry
@@ -216,8 +182,8 @@ if __name__ == "__main__":
 
         # Compute congestion-based grayscale for every undirected edge
         added_travel_times = [
-            congestion_time(undirected_graph.edges[e], current_sim_time)
-            for e in edges
+            sim.get_edge_congestion_time(source, dest, current_sim_time)
+            for source, dest in edges
         ]
         base_intensities = [
             str(max(0.9 / 15 * (15 - tau), 0.0))
@@ -261,24 +227,3 @@ if __name__ == "__main__":
     plt.ylabel("Y coordinate")
     plt.tight_layout()
     plt.show()
-
-u, v = edge_example
-
-# Tabel with sample times
-if undirected_graph.has_edge(u, v):
-    edge_attrs = undirected_graph.edges[u, v]
-    records = []
-
-    for t in [t1, t2, t3, t4, t5, t6, t7, t8]:
-        records.append({
-            "Time (min)": t,
-            "Flow (veh/h)": get_flow(edge_attrs, t),
-            "Critical Density (veh/km)": get_critical_density(edge_attrs),
-            "Travel Time (min)": get_travel_time(edge_attrs, t),
-            "Speed in m/s" : get_speed(edge_attrs, t),
-            "Density(veh/km)" : get_density(edge_attrs,t),
-            "Capacity" : get_capacity(edge_attrs,t)
-        })
-
-    df = pd.DataFrame(records)
-    print(df)

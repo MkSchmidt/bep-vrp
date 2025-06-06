@@ -14,9 +14,13 @@ class TrafficSim:
             self.G.edges[row["from"], row["to"]]["volume"] = row["volume"]
         if nodes is not None:
             for node in nodes.to_dict("records"):
-                self.G.nodes["id"]["x"] = node["x"]
-                self.G.nodes["id"]["y"] = node["y"]
+                self.G.nodes[node["node"]]["coordinates"] = node["x"], node["y"]
     
+    def get_edge_congestion_time(self, source, dest, t):
+        travel_time = self._get_edge_travel_time(source, dest, t)
+        free_flow_time = self.G.edges[source, dest]["free_flow_time"]
+        return travel_time - free_flow_time
+
     def get_route_travel_time(self, route: list[int], t_start: float = 3600*8) -> float:
         _, head = self._dynamic_dijkstra(route[0], route[1], t_start)
         if len(route) > 2:
