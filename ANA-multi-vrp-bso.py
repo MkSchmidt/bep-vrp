@@ -5,35 +5,30 @@ import numpy as np
 import pandas as pd
 import networkx as nx
 from itertools import pairwise
-from matplotlib import pyplot as plt, animation
-from read_files import (
-    load_edgefile, load_flowfile,
-    load_nodefile, project_root, read_folder)
 from BsoLns_imp import BSOLNS 
-import mplcursors
 import vrp_sim as vs
 from read_cities import read_anaheim
 from plot_solution import plot_solution
 import time
 from export_excel import save_results
+from matplotlib import pyplot as plt
 
 # Define BSO-LNS Problem: Depot and Customers
-depot_node_id = 406   
-customer_node_ids = [386 ,370 , 17 ,267 ,303, 321,305]
+depot_node_id = 370
+customer_node_ids = [386 ,406 , 17 ,267 ,303, 321,305]
 sim_start = 6 * 60 * 60  # 6:00
 route_start_t = (15 * 60 + 30)*60  # 15:30 (in seconds)
 num_vehicles = 2
 n_demand = [1] * len(customer_node_ids)  #Demand per customer
 total_demand = sum(n_demand)
 vehicle_capacity = math.ceil(total_demand / num_vehicles)
-edge_example = 12 ,275 
 
 # Parameters for BSO
-pop_size = 20
-n_clusters = 3
-ideas_per_cluster = 2
+pop_size = 200
+n_clusters = 5
+ideas_per_cluster = 5
 max_iter = 1
-remove_rate = 0.5
+remove_rate = 0.8
 
 def test_edge_example(u=12 ,v=275):
     # Time-breakpoints demand function
@@ -84,6 +79,7 @@ def td_travel_time_wrapper(u_bso_idx, v_bso_idx, depart_t):
     path_nodes, duration = sim._dynamic_dijkstra(u_actual, v_actual, depart_t)
     memoized_travel_times[cache_key] = duration
     return duration
+
 start_time = time.time()
 # Run BSO-LNS solver
 bso_solver = BSOLNS(
@@ -98,11 +94,16 @@ bso_solver = BSOLNS(
     remove_rate=remove_rate
 )
 
-best_solution, cost_history = bso_solver.run()
+best_solution, cost_history, population_history = bso_solver.run()
 run_time = time.time() - start_time
 print(f"BSO-LNS final best cost: {best_solution['cost']:.2f}, Routes: {best_solution['sol']}")
 save_results(best_solution["cost"], run_time, route_start_t, num_vehicles)
 
+population_scatter_x = [ i for i in range(len(population_history)) for j in population_history[i] ]
+population_scatter_y = [ cost for population in population_history for cost in population ]
+
+plt.scatter(population_scatter_x, population_scatter_y)
+plt.show()
 
 # plot_solution(sim, best_solution["sol"], route_start_t, customer_node_ids, depot_node_id)
 
