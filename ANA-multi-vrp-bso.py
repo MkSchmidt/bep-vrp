@@ -11,6 +11,7 @@ from read_files import (
     load_nodefile, project_root, read_folder)
 from BsoLns_imp import BSOLNS 
 import mplcursors
+import vrp_sim as vs
 
 # Define BSO-LNS Problem: Depot and Customers
 depot_node_id = 406   
@@ -36,76 +37,6 @@ n_clusters = 3
 ideas_per_cluster = 2
 max_iter = 10
 remove_rate = 0.5
-
-# Function to build graph
-def graph_from_data(edges: pd.DataFrame, nodes: pd.DataFrame) -> nx.DiGraph:
-    G = nx.DiGraph()
-    G.add_nodes_from([
-        (n["node"], {"coordinates": (n["x"], n["y"])})
-        for n in nodes.to_dict("records")
-    ])
-    G.add_edges_from([
-        (e["init_node"], e["term_node"], e)
-        for e in edges.to_dict("records")
-    ])
-    return G
-
-# Compute path length (not used directly below but kept for reference)
-def get_path_length(graph: nx.DiGraph, path: list) -> float:
-    return sum(
-        graph.edges[u, v]["free_flow_time"]
-        for u, v in pairwise(path)
-    )
-
-# Demand function
-def demand(t: float) -> float:
-    low, medium, high = 0.1, 0.5, 1.1
-    if t <= t1:
-        return low
-    elif t < t2:
-        return low + (high - low) * (t - t1) / (t2 - t1)
-    elif t < t3:
-        return high
-    elif t <= t4:
-        return high - (high - medium) * (t - t3) / (t4 - t3)
-    elif t <= t5:
-        return medium
-    elif t < t6:
-        return medium + (high - medium) * (t - t5) / (t6 - t5)
-    elif t <= t7:
-        return high
-    elif t < t8:
-        return low + (high - low) * (1 - (t - t7) / (t8 - t7))
-    else:
-        return low
-
-# --- Congestion Model Based on Demand ---
-def get_flow(attrs: dict, t_min: float) -> float:
-    volume = attrs.get("volume", 0)
-    return volume * demand(t_min) * 10 
-
-def get_capacity(attrs: dict, t_min: float) -> float:
-    capacity = attrs.get("capacity")
-    return capacity 
-
-# Determine Critical Density for each edge
-def get_critical_density(attrs: dict):
-    capacity = attrs.get("capacity")                    #[veh/h]
-    free_time = attrs.get("free_flow_time")/60          #[h]
-    free_time = 1.667 if free_time == 0 else free_time # Neighboorhoodroads, dont have Free_flow_time in Data ---> ~30 km/h
-    length = attrs.get("length")* 0.3048/1000           #[km]
-    ff_speed = length / free_time                       #[km/h]
-    return capacity / ff_speed                          #[veh/km]
-
-# Determine Density of each edge
-def get_density(attrs: dict, t_min):
-    flow = get_flow(attrs, t_min)                        #[veh/h]
-    free_time = attrs.get("free_flow_time")/60           #[h]
-    free_time = 1.6667 if free_time ==0 else free_time   # Neighboorhoodroads, dont have Free_flow_time in Data ---> ~30 km/h
-    length = attrs.get("length") * 0.3048/1000           #[km]
-    free_speed = (length / free_time)                    #[km/h] 
-    density = flow / free_speed                          #[veh/h]
-    return density                                       #[veh/h]
 
 # Travel time bepalen
 def get_travel_time(attrs: dict, t_min):
@@ -137,52 +68,6 @@ def congestion_time(attrs: dict, t_min):
     B = 0.15
     return free_time_min * (B* (flow/capacity)**beta)     #[min]
 
-
-def get_node_sequence(graph: nx.DiGraph, end: int) -> list:
-    path = []
-    curr = end
-    while curr is not None:
-        path.append(curr)
-        if "previous" not in graph.nodes[curr] or graph.nodes[curr]["previous"] is None:
-            if curr != graph.nodes[curr].get("_dijkstra_source"):
-                break
-            else:
-                break
-        if curr == graph.nodes[curr]["previous"]:
-            break
-        curr = graph.nodes[curr]["previous"]
-    if not path:
-        return [end] if graph.nodes[end].get("_dijkstra_source") == end else []
-    return path[::-1]
-
-def dynamic_dijkstra(graph: nx.DiGraph, start: int, end: int, start_t: float) -> list:
-    nx.set_node_attributes(graph, {"_dijkstra_source": start})
-    for node in graph.nodes:
-        graph.nodes[node]["arrival_time"] = math.inf
-        graph.nodes[node]["previous"] = None
-    if start not in graph or end not in graph:
-        return []
-    graph.nodes[start]["arrival_time"] = start_t
-    Q = set(graph.nodes)
-    while Q:
-        u = min(Q, key=lambda n: graph.nodes[n]["arrival_time"])
-        if graph.nodes[u]["arrival_time"] == math.inf:
-            break
-        if u == end:
-            return get_node_sequence(graph, end)
-        Q.remove(u)
-        t_u = graph.nodes[u]["arrival_time"]
-        for v in graph.neighbors(u):
-            if v not in Q:
-                continue
-            edge_data = graph.edges[u, v]
-            tt = get_travel_time(edge_data, t_u)
-            alt = t_u + tt
-            if alt < graph.nodes[v]["arrival_time"]:
-                graph.nodes[v]["arrival_time"] = alt
-                graph.nodes[v]["previous"] = u
-    return []
-
 def arrival_times_for_path(graph: nx.DiGraph, path: list, start_t: float) -> dict:
     times = {}
     t = start_t
@@ -207,27 +92,14 @@ if __name__ == "__main__":
         os.path.join(project_root, "TransportationNetworks", "Anaheim")
     )
 
-    # Build directed and undirected graphs
-    G_directed = graph_from_data(edges_df, nodes_df)
-    undirected_graph = nx.Graph()
-    for node, data in G_directed.nodes(data=True):
-        undirected_graph.add_node(node, **data)
-    for u, v, data in G_directed.edges(data=True):
-        if not undirected_graph.has_edge(u, v):
-            undirected_graph.add_edge(u, v, **data)
-
-    # Populate volume from flow_df onto undirected_graph
-    for row in flow_df.to_dict("records"):
-        if undirected_graph.has_node(row["from"]) and undirected_graph.has_node(row["to"]):
-            if undirected_graph.has_edge(row["from"], row["to"]):
-                undirected_graph.edges[row["from"], row["to"]]["volume"] = row["volume"]
+    sim = vs.TrafficSim(edges_df, flow_df, nodes=nodes_df)
 
     # Coordinates for plotting
-    pos = {n: data["coordinates"] for n, data in undirected_graph.nodes(data=True)}
-    edges = list(undirected_graph.edges())
+    pos = {n: data["coordinates"] for n, data in sim.G.nodes(data=True)}
+    edges = list(sim.G.edges())
 
     # Filter out any customer IDs not present
-    customer_node_ids = [nid for nid in customer_node_ids if undirected_graph.has_node(nid)]
+    customer_node_ids = [nid for nid in customer_node_ids if sim.G.has_node(nid)]
     if not undirected_graph.has_node(depot_node_id):
         raise ValueError(f"Depot node {depot_node_id} not in graph.")
     if len(customer_node_ids) < 1:
@@ -240,21 +112,21 @@ if __name__ == "__main__":
     # Plot setup: draw nodes & edges once
     fig, ax = plt.subplots(figsize=(10, 8))
     nx.draw_networkx_nodes(
-        undirected_graph, pos,
+        sim.G, pos,
         node_size=1, ax=ax, node_color='gray'
     )
     nx.draw_networkx_nodes(
-        G_directed, pos,
+        sim.G, pos,
         nodelist=customer_node_ids,
         node_size=20, ax=ax, node_color='blue'
     )
     nx.draw_networkx_nodes(
-        G_directed, pos,
+        sim.G, pos,
         nodelist=[depot_node_id],
         node_size=20, ax=ax, node_color='red'
     )
     drawn = nx.draw_networkx_edges(
-        undirected_graph, pos,
+        sim.G, pos,
         edgelist=edges, edge_color="0.8", ax=ax
     )
 
