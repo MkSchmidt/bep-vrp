@@ -111,7 +111,7 @@ class TrafficSim:
         low, medium, high = 0.1, 0.5, 1.1
         demands = np.array([ low, low, high, high, medium, medium, high, high, low, low ])
         times =   np.array([ 0,   4,   8.5,  10,   12,     16.5,   18,   20,   22,  24  ]) * 3600    
-        partial_sums = (times[1:] - times[:-1]) * (demands[1:] - demands[:-1])/2 / 3600
+        partial_sums = (times[1:] - times[:-1]) * (demands[1:] + demands[:-1])/2 / 3600
         normalized_demands = demands / np.sum(partial_sums)
         return np.interp(t, times, normalized_demands)
 
