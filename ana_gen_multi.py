@@ -18,7 +18,7 @@ from export_excel import save_results
 
 # Define GA Problem: Depot and Customers
 depot_node_id = 406   
-customer_node_ids = [386 ,370 , 17, 267 ,303, 321 ,305 ,308, 342, 400, 6, 372, 358,  300, 404, 333, 390, 369, 325, 388]
+customer_node_ids =  [386 ,370 , 17, 267 ,303, 321 ,305 ,308, 342, 400, 6, 372, 358,  300, 404, 333, 390, 369, 325, 388]
 #[386 ,370 , 17 ,267 ,303, 321,305]
 time_step_minutes = 10  # mins
 sim_start = 6 * 60 *60 # 6:00
@@ -33,8 +33,8 @@ B = 0.15
 edge_example = 12 ,275 
 
 # Parameters for GA
-pop_size=50
-max_gens= 250
+pop_size=10
+max_gens= 50
 tournament_size=2    
 crossover_rate=0.9
 mutation_rate=0.2
@@ -95,15 +95,21 @@ def td_travel_time_wrapper(u, v, depart_t):
         memoized_travel_times[cache_key] = duration
         return duration
 
-start_time = time.time()
 
 # 5) Instantiate GA_DP, passing exactly those arguments:
-ga_solver = GA_DP(
+def run_ga(route_start_t, num_vehicles, vehicle_capacity,
+           period_breaks, demands_dict, depot_node_id):
+    """
+    Runs one GA sweep with the given parameters.
+    Returns: (best_solution, best_cost, run_time_seconds)
+    """
+    start_time = time.time()
+    ga_solver = GA_DP(
         travel_time_fn=td_travel_time_wrapper,
         demands_dict=demands_dict,
         num_vehicles=num_vehicles,
         vehicle_capacity=vehicle_capacity,
-        period_breaks=period_breaks, 
+        period_breaks=period_breaks,
         time_windows={},
         pop_size=pop_size,
         max_gens=max_gens,
@@ -112,14 +118,21 @@ ga_solver = GA_DP(
         mutation_rate=mutation_rate,
         elite_count=elite_count,
         start_time=route_start_t,
-        depot_node_id=depot_node_id  
+        depot_node_id=depot_node_id
     )
 
-best_solution, best_cost = ga_solver.run()
-run_time = time.time() - start_time
+    best_solution, best_cost = ga_solver.run()
+    run_time = time.time() - start_time
+
+    # Optional: save results for bookkeeping
+    save_results(best_cost, run_time, route_start_t, num_vehicles)
+
+    return best_solution, best_cost, run_time
 
 # 2. Use the correct variables in your print and save functions
 # Cost is in seconds, so convert to minutes for display
+best_solution, best_cost, run_time = run_ga(route_start_t, num_vehicles, vehicle_capacity,period_breaks, demands_dict, depot_node_id)
+
 print(f"GA final best cost: {best_cost / 60:.2f} minutes ({best_cost:.0f} seconds)")
 print(f"Solution details (giant_tour, splits): {best_solution}")
 
