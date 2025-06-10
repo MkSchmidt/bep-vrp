@@ -38,10 +38,10 @@ vehicle_capacity = math.ceil(total_demand / num_vehicles)
 default_params = {
 "pop_size": 100,
 "max_gens": 100,
-"tournament_size": 5,
-"crossover_rate": 0.7,
-"mutation_rate": 0.3,
-"elite_count": 4,}
+"tournament_size": 2,
+"crossover_rate": 0.6,
+"mutation_rate": 0.5,
+"elite_count": 1,}
 
 # Time-breakpoints demand function
 t1, t2, t3, t4 = 6.5 * 60, 8.5 * 60, 10 * 60, 12 * 60
@@ -99,7 +99,7 @@ def td_travel_time_wrapper(u, v, depart_t):
 
 # 5) Instantiate GA_DP, passing exactly those arguments:
 def run_ga(route_start_t, num_vehicles, vehicle_capacity,
-           period_breaks, demands_dict, depot_node_id,pop_size,max_gens,tournament_size,crossover_rate,mutation_rate,elite_count,):
+           period_breaks, demands_dict, depot_node_id,pop_size,max_gens,tournament_size,crossover_rate,mutation_rate,elite_count):
     """
     Runs one GA sweep with the given parameters.
     Returns: (best_solution, best_cost, run_time_seconds)

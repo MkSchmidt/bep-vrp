@@ -23,6 +23,7 @@ sim_start = 6 * 60 * 60  # 6:00
 route_start_t = (15 * 60 + 30)*60  # 15:30 (in seconds)
 num_vehicles = 2
 n_demand = [1] * len(customer_node_ids)  #Demand per customer
+demands = {customer_node_ids[i]: n_demand[i] for i in range(len(customer_node_ids))}
 total_demand = sum(n_demand)
 vehicle_capacity = math.ceil(total_demand / num_vehicles)
 edge_example = 12 ,275 
@@ -66,7 +67,7 @@ def td_travel_time_wrapper(u_bso_idx, v_bso_idx, depart_t):
     return duration
 
 
-def run_bso(route_start_t, vehicle_capacity,customer_demands, pop_size, n_clusters,ideas_per_cluster, max_iter, remove_rate):
+def run_bso(start_time, vehicle_capacity,demands, pop_size, n_clusters,ideas_per_cluster, max_iter, remove_rate):
     # Run BSO-LNS solver
     start_time = time.time()
     bso_solver = BSOLNS(
@@ -89,17 +90,14 @@ def run_bso(route_start_t, vehicle_capacity,customer_demands, pop_size, n_cluste
 
 
 def main():
-
     best_solution, best_cost, run_time = run_bso(
         **default_params,  
         travel_time_fn=td_travel_time_wrapper,
         demands=customer_demands,
         vehicle_capacity=vehicle_capacity,
         start_time=route_start_t,
-        demands=customer_demands,
         depot_node_id=depot_node_id)
     
-
     print(f"BSO-LNS final best cost: {best_solution['cost']:.2f}, Routes: {best_solution['sol']}")
     save_results(best_solution["cost"], run_time, route_start_t, num_vehicles)
 
