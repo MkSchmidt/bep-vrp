@@ -287,7 +287,7 @@ if __name__ == "__main__":
         crossover_rate=crossover_rate,
         mutation_rate=mutation_rate,
         elite_count=elite_count,
-        start_time=start_time,
+        start_time=route_start_t,
         depot_node_id=depot_node_id
     )
 

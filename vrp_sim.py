@@ -4,6 +4,7 @@ import numpy as np
 from typing import Optional
 import networkx as nx
 from itertools import pairwise
+import heapq
 
 class TrafficSim:
     def __init__(self, edges: pd.DataFrame, flows: pd.DataFrame, nodes: Optional[pd.DataFrame] = None):
@@ -51,17 +52,37 @@ class TrafficSim:
         return travel_time
 
     def _dynamic_dijkstra(self, start, end, start_t) -> tuple[list[int], float]:
-        nx.set_node_attributes(self.G, math.inf, "arrival_time")
-        nx.set_node_attributes(self.G, None, "previous")
-        self.G.nodes[start]["arrival_time"] = start_t
-        
-        Q = set(self.G.nodes)
-        
-        def get_node_sequence(graph, end_node):
-            previous = graph.nodes[end_node]["previous"]
-            if previous is None:
-                return [end_node]
-            return get_node_sequence(graph, previous) + [end_node]
+        # Local state only
+        dist = {n: math.inf for n in self.G.nodes}
+        prev = {n: None       for n in self.G.nodes}
+        dist[start] = start_t
+
+        # Min‐heap frontier: (arrival_time, node)
+        heap = [(start_t, start)]
+        while heap:
+            t_u, u = heapq.heappop(heap)
+            if u == end:
+                break
+            if t_u > dist[u]:
+                continue
+
+            for v in self.G.neighbors(u):
+                travel = self._get_edge_travel_time(u, v, t_u)
+                t_v = t_u + travel
+                if t_v < dist[v]:
+                    dist[v] = t_v
+                    prev[v] = u
+                    heapq.heappush(heap, (t_v, v))
+
+        # Reconstruct path iteratively
+        path = []
+        node = end
+        while node is not None:
+            path.append(node)
+            node = prev[node]
+        path.reverse()
+
+        return path, dist[end] - start_t
 
         while len(Q) > 0:
             minimum_distance_node = list(Q)[0]

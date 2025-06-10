@@ -8,7 +8,7 @@ class GA_DP:
                  # ────────────────────────────────────────────────────────────────────────────
                  travel_time_fn,
                      # function(u: int, v: int, depart_time: float) → float
-                     #     Returns travel time (minutes) from u→v when departing at depart_time.
+                     #     Returns travel time (seconds) from u→v when departing at depart_time.
                  demands_dict,
                      # dict[int → float]: customer node ID → demand. Depot is assumed ID 0.
                  num_vehicles,
@@ -16,12 +16,12 @@ class GA_DP:
                  vehicle_capacity,
                      # float: payload capacity (kg) per vehicle.
                  time_windows=None,
-                     # dict[int → (earliest, latest)] in minutes. (unused if empty)
+                     # dict[int → (earliest, latest)] in seconds. (unused if empty)
                  # ────────────────────────────────────────────────────────────────────────────
                  # 2. Time‐period discretization & emission model
                  # ────────────────────────────────────────────────────────────────────────────
                  period_breaks=None,
-                     # list[float]: time‐points in minutes. (Still required for the DP indices.)
+                     # list[float]: time‐points in seconds. (Still required for the DP indices.)
                  emission_fn=None,  # not used if travel_time only
                      # function(weight_kg, speed_kmh) → emission rate. (ignored in pure travel-time mode.)
                  # ────────────────────────────────────────────────────────────────────────────
