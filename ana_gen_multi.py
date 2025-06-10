@@ -17,33 +17,31 @@ import time
 from export_excel import save_results
 
 # Define GA Problem: Depot and Customers
-depot_node_id = 406   
-customer_node_ids =  [386, 370,  17,  303,  305,  342, 400,  372, 358 , 404 ,333 ,390 ,369]
 # Small Customerbase
 #[386 ,370 , 17 ,267 ,303, 321,305]
 # Medium Customerbase
 #[386, 370,  17,  303,  305,  342, 400,  372, 358 , 404 ,333 ,390 ,369]
 # Large Customerbase
 #[386 ,370 , 17, 267 ,303, 321 ,305 ,308, 342, 400, 6, 372, 358,  300, 404, 333, 390, 369, 325, 388]
+depot_node_id = 406   
+customer_node_ids =  [386 ,370 , 17, 267 ,303, 321 ,305 ,308, 342, 400, 6, 372, 358,  300, 404, 333, 390, 369, 325, 388]
 time_step_minutes = 10  # mins
 sim_start = 6 * 60 *60 # 6:00
 route_start_t = 7 * 60 * 60
 num_vehicles = 4
 n_demand = [1] * len(customer_node_ids)  #Demand per customer
-n_demand = [1] * len(customer_node_ids)
 demands_dict = {customer_node_ids[i]: n_demand[i] for i in range(len(customer_node_ids))}
 total_demand = sum(n_demand)
 vehicle_capacity = math.ceil(total_demand / num_vehicles)
-B = 0.15
-edge_example = 12 ,275 
 
 # Parameters for GA
-pop_size=10
-max_gens= 50
-tournament_size=2    
-crossover_rate=0.9
-mutation_rate=0.2
-elite_count=2
+default_params = {
+"pop_size": 100,
+"max_gens": 100,
+"tournament_size": 5,
+"crossover_rate": 0.7,
+"mutation_rate": 0.3,
+"elite_count": 4,}
 
 # Time-breakpoints demand function
 t1, t2, t3, t4 = 6.5 * 60, 8.5 * 60, 10 * 60, 12 * 60
@@ -51,8 +49,6 @@ t5, t6, t7, t8 = 16.5 * 60, 18 * 60, 20 * 60, 22 * 60
 route_start_t_minutes = route_start_t /60
 breaks_in_minutes = sorted([0, t1, t2, t3, t4, route_start_t_minutes, t5, t6, t7, t8, 24*60])
 period_breaks = [t * 60 for t in breaks_in_minutes]
-
-
 
 def test_edge_example(u=12 ,v=275):
     # Time-breakpoints demand function
@@ -103,7 +99,7 @@ def td_travel_time_wrapper(u, v, depart_t):
 
 # 5) Instantiate GA_DP, passing exactly those arguments:
 def run_ga(route_start_t, num_vehicles, vehicle_capacity,
-           period_breaks, demands_dict, depot_node_id):
+           period_breaks, demands_dict, depot_node_id,pop_size,max_gens,tournament_size,crossover_rate,mutation_rate,elite_count,):
     """
     Runs one GA sweep with the given parameters.
     Returns: (best_solution, best_cost, run_time_seconds)
@@ -134,14 +130,22 @@ def run_ga(route_start_t, num_vehicles, vehicle_capacity,
 
     return best_solution, best_cost, run_time
 
-# 2. Use the correct variables in your print and save functions
+if __name__ == '__main__':
+#2. Use the correct variables in your print and save functions
 # Cost is in seconds, so convert to minutes for display
-best_solution, best_cost, run_time = run_ga(route_start_t, num_vehicles, vehicle_capacity,period_breaks, demands_dict, depot_node_id)
+    best_solution, best_cost, run_time = run_ga(
+        **default_params,  
+        route_start_t=route_start_t,
+        num_vehicles=num_vehicles,
+        vehicle_capacity=vehicle_capacity,
+        period_breaks=period_breaks,
+        demands_dict=demands_dict,
+        depot_node_id=depot_node_id)
 
-print(f"GA final best cost: {best_cost / 60:.2f} minutes ({best_cost:.0f} seconds)")
-print(f"Solution details (giant_tour, splits): {best_solution}")
+    print(f"GA final best cost: {best_cost / 60:.2f} minutes ({best_cost:.0f} seconds)")
+    print(f"Solution details (giant_tour, splits): {best_solution}")
 
-save_results(best_cost, run_time, route_start_t, num_vehicles)
+    save_results(best_cost, run_time, route_start_t, num_vehicles)
 
 
-# plot_solution(sim, best_solution["sol"], route_start_t, customer_node_ids, depot_node_id)
+    # plot_solution(sim, best_solution["sol"], route_start_t, customer_node_ids, depot_node_id)
