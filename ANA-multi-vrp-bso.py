@@ -10,7 +10,6 @@ from read_files import (
     load_edgefile, load_flowfile,
     load_nodefile, project_root, read_folder)
 from BsoLns_imp import BSOLNS 
-import mplcursors
 import vrp_sim as vs
 from read_cities import read_anaheim
 from plot_solution import plot_solution

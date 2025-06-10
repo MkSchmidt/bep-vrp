@@ -16,11 +16,12 @@ from plot_solution import plot_solution
 import time
 from export_excel import save_results
 
-# Define BSO-LNS Problem: Depot and Customers
+# Define GA Problem: Depot and Customers
 depot_node_id = 406   
 customer_node_ids = [386 ,370 , 17 ,267 ,303, 321,305]
 time_step_minutes = 10  # mins
-sim_start = 0 * 60  # 6:00
+sim_start = 0 * 60 *60 # 6:00
+route_start_t = (15*60 +30)*60
 num_vehicles = 2
 n_demand = [1] * len(customer_node_ids)  #Demand per customer
 n_demand = [1] * len(customer_node_ids)
@@ -33,9 +34,7 @@ edge_example = 12 ,275
 # Time-breakpoints demand function
 t1, t2, t3, t4 = 6.5 * 60, 8.5 * 60, 10 * 60, 12 * 60
 t5, t6, t7, t8 = 16.5 * 60, 18 * 60, 20 * 60, 22 * 60
-route_start_t = 15.5 * 60  # 930
-period_breaks = sorted([0, t1, t2, t3, t4, route_start_t, t5, t6, t7, t8, 24*60])
-start_time = route_start_t
+period_breaks = sorted([0, t1, t2, t3, t4, route_start_t, t5, t6, t7, t8, 24*60])*60
 
 # Parameters for GA
 pop_size=50
@@ -78,23 +77,20 @@ if not sim.G.has_node(depot_node_id):
 if len(customer_node_ids) < 1:
     raise ValueError("No customer nodes defined or found in graph.")
 
-# BSO-LNS setup: map from BSO indices → actual node IDs
-customer_demands = n_demand
-bso_nodes_map = [depot_node_id] + customer_node_ids
-
-# Travel time wrapper for BSO using dynamic Dijkstra + memoization
 memoized_travel_times = {}
-def td_travel_time_wrapper(u_bso_idx, v_bso_idx, depart_t):
-    u_actual = bso_nodes_map[u_bso_idx]
-    v_actual = bso_nodes_map[v_bso_idx]
-    if u_actual == v_actual:
-        return 0.0
-    cache_key = (u_actual, v_actual, depart_t)
-    if cache_key in memoized_travel_times:
-        return memoized_travel_times[cache_key]
-    path_nodes, duration = sim._dynamic_dijkstra(u_actual, v_actual, depart_t)
-    memoized_travel_times[cache_key] = duration
-    return duration
+
+def td_travel_time_wrapper(u, v, depart_t):
+        # u and v are already actual node IDs, so no mapping needed
+        if u == v:
+            return 0.0
+        cache_key = (u, v, depart_t)
+        cache_key = (u, v, depart_t)
+        if cache_key in memoized_travel_times:
+            return memoized_travel_times[cache_key]
+        path_nodes, duration = sim._dynamic_dijkstra(u, v, depart_t)
+        memoized_travel_times[cache_key] = duration
+        return duration
+
 start_time = time.time()
 
 # 5) Instantiate GA_DP, passing exactly those arguments:
@@ -111,13 +107,13 @@ ga_solver = GA_DP(
         crossover_rate=crossover_rate,
         mutation_rate=mutation_rate,
         elite_count=elite_count,
-        start_time=start_time,
+        start_time=route_start_t,
         depot_node_id=depot_node_id  
     )
 
 best_solution, cost_history = ga_solver.run()
 run_time = time.time() - start_time
-print(f"BSO-LNS final best cost: {best_solution['cost']:.2f}, Routes: {best_solution['sol']}")
+print(f"GA final best cost: {best_solution['cost']:.2f}, Routes: {best_solution['sol']}")
 save_results(best_solution["cost"], run_time, route_start_t, num_vehicles)
 
 
