@@ -34,7 +34,9 @@ edge_example = 12 ,275
 # Time-breakpoints demand function
 t1, t2, t3, t4 = 6.5 * 60, 8.5 * 60, 10 * 60, 12 * 60
 t5, t6, t7, t8 = 16.5 * 60, 18 * 60, 20 * 60, 22 * 60
-period_breaks = sorted([0, t1, t2, t3, t4, route_start_t, t5, t6, t7, t8, 24*60])*60
+route_start_t_minutes = route_start_t /60
+breaks_in_minutes = sorted([0, t1, t2, t3, t4, route_start_t_minutes, t5, t6, t7, t8, 24*60])
+period_breaks = [t * 60 for t in breaks_in_minutes]
 
 # Parameters for GA
 pop_size=50
@@ -43,7 +45,6 @@ tournament_size=2
 crossover_rate=0.9
 mutation_rate=0.2
 elite_count=2
-start_time=0.0
 
 def test_edge_example(u=12 ,v=275):
     # Time-breakpoints demand function
@@ -111,10 +112,15 @@ ga_solver = GA_DP(
         depot_node_id=depot_node_id  
     )
 
-best_solution, cost_history = ga_solver.run()
+best_solution, best_cost = ga_solver.run()
 run_time = time.time() - start_time
-print(f"GA final best cost: {best_solution['cost']:.2f}, Routes: {best_solution['sol']}")
-save_results(best_solution["cost"], run_time, route_start_t, num_vehicles)
+
+# 2. Use the correct variables in your print and save functions
+# Cost is in seconds, so convert to minutes for display
+print(f"GA final best cost: {best_cost / 60:.2f} minutes ({best_cost:.0f} seconds)")
+print(f"Solution details (giant_tour, splits): {best_solution}")
+
+save_results(best_cost, run_time, route_start_t, num_vehicles)
 
 
 # plot_solution(sim, best_solution["sol"], route_start_t, customer_node_ids, depot_node_id)
