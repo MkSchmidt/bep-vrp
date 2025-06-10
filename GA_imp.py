@@ -9,10 +9,7 @@ class GA_DP:
                  travel_time_fn,
                      # function(u: int, v: int, depart_time: float) → float
                      #     Returns travel time (minutes) from u→v when departing at depart_time.
-                 travel_distance_fn,
-                     # function(u: int, v: int) → float
-                     #     Returns distance (km) from u→v.  # still needed for DP (to compute speed, if desired)
-                 demands,
+                 demands_dict,
                      # dict[int → float]: customer node ID → demand. Depot is assumed ID 0.
                  num_vehicles,
                      # int: total number of identical vehicles.
@@ -43,9 +40,8 @@ class GA_DP:
         """
         # 1. Graph + demand
         self.travel_time = travel_time_fn
-        self.travel_distance = travel_distance_fn
-        self.demands = demands
-        self.customer_ids = sorted(demands.keys())
+        self.demands = demands_dict
+        self.customer_ids = sorted(demands_dict.keys())
         self.N = len(self.customer_ids)
         self.num_vehicles = num_vehicles
         self.capacity = vehicle_capacity
@@ -103,7 +99,7 @@ class GA_DP:
 
         for gen in range(1, self.max_gens + 1):
             new_population = []
-            # Elitism: copy the best `elite_count` individuals
+            # Elitism: copy the best elite_count individuals
             sorted_indices = sorted(range(self.pop_size), key=lambda i: fitnesses[i])
             for i in sorted_indices[: self.elite_count]:
                 new_population.append(population[i])
