@@ -3,8 +3,8 @@ from ana_gen_multi import run_ga, period_breaks, demands_dict, depot_node_id, ro
 
 def objective(trial):
     params = {
-        "pop_size":     trial.suggest_int("pop_size", 100, 110, step=10),
-        "max_gens":     trial.suggest_int("max_gens", 100,110, step=10),
+        "pop_size":  100,
+        "max_gens":  100,
         "tournament_size": trial.suggest_int("tournament_size", 2, 7, step=1),
         "crossover_rate":  trial.suggest_float("crossover_rate", 0.7, 1.0, step=0.1),
         "mutation_rate":   trial.suggest_float("mutation_rate", 0.2, 0.5, step=0.1),
@@ -21,7 +21,6 @@ def objective(trial):
         depot_node_id=depot_node_id
     )
     return best_cost
-
 
 def main():
     # Use the TPE sampler (Tree-structured Parzen Estimator)
