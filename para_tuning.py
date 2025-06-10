@@ -7,8 +7,8 @@ def objective(trial):
         "max_gens":     trial.suggest_int("max_gens",    50, 250, step=10),
         "tournament_size": trial.suggest_int("tournament_size", 2, 10, step=1),
         "crossover_rate":  trial.suggest_float("crossover_rate", 0.5, 1.0, step=0.1),
-        "mutation_rate":   trial.suggest_float("mutation_rate", 0.0, 0.5, step=0.1),
-        "elite_count":     trial.suggest_int("elite_count", 0, 10, step=1),
+        "mutation_rate":   trial.suggest_float("mutation_rate", 0.2, 0.5, step=0.1),
+        "elite_count":     trial.suggest_int("elite_count", 2, 10, step=1),
     }
 
     # Call your GA directly, passing params
@@ -26,7 +26,7 @@ def objective(trial):
 
 def main():
     study = optuna.create_study(direction="minimize")
-    study.optimize(objective, n_trials=50, n_jobs=4)
+    study.optimize(objective, n_trials=1000, n_jobs=1)
 
     print("Best params:", study.best_params)
     print("Best runtime (s):", study.best_value)

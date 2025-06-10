@@ -18,8 +18,13 @@ from export_excel import save_results
 
 # Define GA Problem: Depot and Customers
 depot_node_id = 406   
-customer_node_ids =  [386 ,370 , 17, 267 ,303, 321 ,305 ,308, 342, 400, 6, 372, 358,  300, 404, 333, 390, 369, 325, 388]
+customer_node_ids =  [386, 370,  17,  303,  305,  342, 400,  372, 358 , 404 ,333 ,390 ,369]
+# Small Customerbase
 #[386 ,370 , 17 ,267 ,303, 321,305]
+# Medium Customerbase
+#[386, 370,  17,  303,  305,  342, 400,  372, 358 , 404 ,333 ,390 ,369]
+# Large Customerbase
+#[386 ,370 , 17, 267 ,303, 321 ,305 ,308, 342, 400, 6, 372, 358,  300, 404, 333, 390, 369, 325, 388]
 time_step_minutes = 10  # mins
 sim_start = 6 * 60 *60 # 6:00
 route_start_t = 7 * 60 * 60
