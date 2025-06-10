@@ -18,11 +18,12 @@ from export_excel import save_results
 
 # Define GA Problem: Depot and Customers
 depot_node_id = 406   
-customer_node_ids = [386 ,370 , 17 ,267 ,303, 321,305]
+customer_node_ids = [386 ,370 , 17, 267 ,303, 321 ,305 ,308, 342, 400, 6, 372, 358,  300, 404, 333, 390, 369, 325, 388]
+#[386 ,370 , 17 ,267 ,303, 321,305]
 time_step_minutes = 10  # mins
-sim_start = 0 * 60 *60 # 6:00
-route_start_t = (15*60 +30)*60
-num_vehicles = 2
+sim_start = 6 * 60 *60 # 6:00
+route_start_t = 7 * 60 * 60
+num_vehicles = 4
 n_demand = [1] * len(customer_node_ids)  #Demand per customer
 n_demand = [1] * len(customer_node_ids)
 demands_dict = {customer_node_ids[i]: n_demand[i] for i in range(len(customer_node_ids))}
@@ -31,6 +32,14 @@ vehicle_capacity = math.ceil(total_demand / num_vehicles)
 B = 0.15
 edge_example = 12 ,275 
 
+# Parameters for GA
+pop_size=50
+max_gens= 250
+tournament_size=2    
+crossover_rate=0.9
+mutation_rate=0.2
+elite_count=2
+
 # Time-breakpoints demand function
 t1, t2, t3, t4 = 6.5 * 60, 8.5 * 60, 10 * 60, 12 * 60
 t5, t6, t7, t8 = 16.5 * 60, 18 * 60, 20 * 60, 22 * 60
@@ -38,13 +47,7 @@ route_start_t_minutes = route_start_t /60
 breaks_in_minutes = sorted([0, t1, t2, t3, t4, route_start_t_minutes, t5, t6, t7, t8, 24*60])
 period_breaks = [t * 60 for t in breaks_in_minutes]
 
-# Parameters for GA
-pop_size=50
-max_gens=10
-tournament_size=2    
-crossover_rate=0.9
-mutation_rate=0.2
-elite_count=2
+
 
 def test_edge_example(u=12 ,v=275):
     # Time-breakpoints demand function
