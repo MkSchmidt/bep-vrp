@@ -1,78 +1,72 @@
 import optuna
 from ana_gen_multi import run_ga, period_breaks, demands_dict, depot_node_id, route_start_t, num_vehicles, vehicle_capacity
+from functools import partial
 
-def objective(trial):
+def objective(trial, problem_data):
+    TOTAL_EVALUATIONS_BUDGET = 20000
+    pop_size = trial.suggest_categorical('pop_size', [50, 100, 200, 400])
+
     params = {
-        "pop_size":  100,
-        "max_gens":  100,
+        "pop_size": pop_size,
         "tournament_size": trial.suggest_int("tournament_size", 2, 10, step=1),
         "crossover_rate":  trial.suggest_float("crossover_rate", 0.5, 1.0, step=0.1),
-        "mutation_rate":   trial.suggest_float("mutation_rate", 0.2, 1.0, step=0.1),
-        "elite_count":     trial.suggest_int("elite_count", 2, 10, step=1),}
+        "mutation_rate":   trial.suggest_float("mutation_rate", 0.01, 0.2, step=0.1),
+        "elite_count": trial.suggest_int("elite_count", 2, max(2, int(pop_size * 0.15)))}
+    
+    max_gens = TOTAL_EVALUATIONS_BUDGET // params['pop_size']
+    params['max_gens'] = max_gens
 
-    # Call your GA directly, passing params
-    best_solution, best_cost, runtime = run_ga(
-        **params,
-        route_start_t=route_start_t,
-        num_vehicles=num_vehicles,
-        vehicle_capacity=vehicle_capacity,
-        period_breaks=period_breaks,
-        demands_dict=demands_dict,
-        depot_node_id=depot_node_id
-    )
-    return best_cost
+    num_runs_for_averaging = 3
+    best_costs = []
+    for i in range(num_runs_for_averaging):
+        return_value_from_ga = run_ga(
+            **params,
+            **problem_data)
+
+        if isinstance(return_value_from_ga, tuple):
+            best_cost = return_value_from_ga[1] 
+        else:
+            best_cost = return_value_from_ga 
+        
+        best_costs.append(best_cost)
+    
+    return sum(best_costs) / len(best_costs)
 
 def main():
-    # Use the TPE sampler (Tree-structured Parzen Estimator)
+    problem_data = {
+        'route_start_t': route_start_t,
+        'num_vehicles': num_vehicles,
+        'vehicle_capacity': vehicle_capacity,
+        'period_breaks': period_breaks,
+        'demands_dict': demands_dict,
+        'depot_node_id': depot_node_id}
+
+    objective_with_data = partial(objective, problem_data=problem_data)
+
+    # Use the TPE sampler with a seed for reproducibility
     sampler = optuna.samplers.TPESampler(seed=42)
-    # A pruner to stop unpromising trials early
-    pruner  = optuna.pruners.MedianPruner(n_warmup_steps=15)
 
     study = optuna.create_study(
         sampler=sampler,
-        pruner=pruner,
         direction="minimize",
-        study_name="ga_runtime_tuning"
+        study_name="ga_traveltime_tuning"
     )
 
-    # You can limit by number of trials or wall-clock time
-    study.optimize(objective, n_trials=300, timeout=None, n_jobs=4)
+    study.optimize(objective_with_data, n_trials=100, n_jobs=1)
 
-    print("Best parameters:", study.best_params)
-    print("Best runtime   :", study.best_value, "seconds")
-'''
-    # --- Save results to Excel in the specified format ---
-import os
-import pandas as pd
+    print("\n--- OPTIMIZATION COMPLETE ---")
+    print(f"Number of finished trials: {len(study.trials)}")
+    print("Best trial:")
+    trial = study.best_trial
+    print(f"  Value (Average Travel Time): {trial.value}")
+    print("  Best Parameters: ")
+    for key, value in trial.params.items():
+        print(f"    {key}: {value}")
 
-def save_parameters(, runtime_seconds, , name="result"):
-    """Save results to Excel in the specified format"""
-    results_path = os.path.join(os.getcwd(), "output", f"{name}.xlsx")
+    # Save all results to a CSV file
+    results_df = study.trials_dataframe()
+    results_df.to_csv("ga_tuning_full_results.csv", index=False)
+    print("\n✅ Full tuning results saved to 'ga_tuning_full_results.csv'")
 
-    try:
-        os.makedirs(os.path.dirname(results_path), exist_ok=True)
-        if os.path.exists(results_path):
-            df = pd.read_excel(results_path)
-        else:
-            df = pd.DataFrame()
-        
-        # Create new row
-        new_data = {
-            'route_start_t': route_start_t_label,
-            'num_vehicles':num_vehicles,
-            'test': len(df) + 1,
-            'traveltime': cost,
-            'runtime': runtime_seconds
-        }
-        
-        new_row = pd.DataFrame([new_data])
-        df = pd.concat([df, new_row], ignore_index=True)
-        
-        df.to_excel(results_path, index=False)
-        print(f"✅ Results saved: {route_start_t_label}, Test {len(df)}")
-        
-    except Exception as e:
-        print(f"❌ Error: {e}")
-'''
 if __name__ == "__main__":
     main()
