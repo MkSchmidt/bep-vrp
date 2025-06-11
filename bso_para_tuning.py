@@ -3,7 +3,7 @@ from functools import partial
 import pandas as pd
 
 # Import the necessary functions and data from your main BSO script
-from ana_bso_multi import run_bso, customer_demands, vehicle_capacity, start_time, num_vehicles
+from ana_bso_multi import run_bso, customer_demands, vehicle_capacity, start_time
 
 def objective(trial, problem_data):
     """
@@ -11,9 +11,9 @@ def objective(trial, problem_data):
     It takes a trial object and a dictionary of fixed problem data.
     """
     # 1. Set a budget for total evaluations to ensure fair comparison
-    TOTAL_EVALUATIONS_BUDGET = 20000  
+    TOTAL_EVALUATIONS_BUDGET = 1000  
     # 2. Define the search space for hyperparameters
-    pop_size = trial.suggest_categorical('pop_size', [50, 100, 150, 200])
+    pop_size = trial.suggest_categorical('pop_size', [20,30,50])
     # Calculate max_iter based on the budget
     max_iter = TOTAL_EVALUATIONS_BUDGET // pop_size
     params = {
@@ -51,12 +51,8 @@ def main():
     # Use the TPE sampler for efficient searching
     sampler = optuna.samplers.TPESampler(seed=42)
     
-    # A pruner can stop unpromising trials early
-    pruner = optuna.pruners.MedianPruner(n_warmup_steps=5, n_startup_trials=5)
-
     study = optuna.create_study(
         sampler=sampler,
-        pruner=pruner,
         direction="minimize",
         study_name="bso_lns_tuning"
     )

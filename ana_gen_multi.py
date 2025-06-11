@@ -24,7 +24,7 @@ from export_excel import save_results
 # Large Customerbase
 #[386 ,370 , 17, 267 ,303, 321 ,305 ,308, 342, 400, 6, 372, 358,  300, 404, 333, 390, 369, 325, 388]
 depot_node_id = 406   
-customer_node_ids =  [386 ,370 , 17, 267 ,3033, 321 ,305 ,308, 342, 400, 6, 372, 358,  300, 404, 333, 390, 369, 325, 388]
+customer_node_ids = [386 ,370 , 17, 267 ,303, 321 ,305 ,308, 342, 400, 6, 372, 358,  300, 404, 333, 390, 369, 325, 388] 
 time_step_minutes = 10  # mins
 sim_start = 6 * 60 *60 # 6:00
 route_start_t = 7 * 60 * 60
@@ -133,16 +133,23 @@ def run_ga(route_start_t, num_vehicles, vehicle_capacity,
 if __name__ == '__main__':
     
     num_runs = 40
-    all_results=[]
+    experiment_name = "ga_40_runs_small_customers"
+    
+    # Let save_results function determine the full path
+    output_file_path = os.path.join(os.getcwd(), "output", f"{experiment_name}.xlsx")
+    if os.path.exists(output_file_path):
+        os.remove(output_file_path)
+        print(f"Removed old results file to start fresh: {output_file_path}")
 
-    output_name = "ga_40_runs_log" 
+    # This list is optional but useful for finding the best run at the end
+    all_results = []
 
-    if os.path.exists(output_filename):
-        os.remove(output_filename)
+    print(f"--- Starting {num_runs} GA runs. Results will be saved to {output_file_path} ---")
+
 
     for i in range(num_runs):
         print(f"\n--- Starting Run {i+1} of {num_runs}")
-        #2.Run with default parameters
+        # Run with default parameters
         best_solution, best_cost, run_time = run_ga(
             **default_params,  
             route_start_t=route_start_t,
@@ -152,30 +159,41 @@ if __name__ == '__main__':
             demands_dict=demands_dict,
             depot_node_id=depot_node_id)
 
-    print(f"GA final best cost: {best_cost / 60:.2f} minutes ({best_cost:.0f} seconds)")
+        print(f"GA final best cost: {best_cost / 60:.2f} minutes ({best_cost:.0f} seconds)")
+        print(f"Solution (tour, splits): {best_solution}")
+
         # 3. Collect the key results from this run
-    all_results.append({
-            'run_number': i + 1,
-            'best_cost_seconds': best_cost,
-            'run_time_seconds': run_time,
-            'solution_tour': best_solution[0],  # Storing the giant tour
-            'solution_splits': best_solution[1] # Storing the splits
-        })    
-    print("\n ---Complete-----")
+        save_results(
+                cost=best_cost, 
+                runtime_seconds=run_time, 
+                route_start_t=route_start_t, 
+                num_vehicles=num_vehicles,
+                name=experiment_name)   
+            
+        all_results.append({
+                'run_number': i + 1,
+                'cost': best_cost,
+                'solution': best_solution}) 
+        print("\n ---Complete-----")
+
+
     result_df = pd.DataFrame(all_results)
 
     output_filename ="ga_multiple runs_results.csv"
-
     
-    #print(f"Solution details (giant_tour, splits): {best_solution}")
+    if all_results:
+        best_overall_run = min(all_results, key=lambda x: x['cost'])
+        print("\n--- Best Overall Run Found ---")
+        print(f"From Run Number: {best_overall_run['run_number']}")
+        print(f"Best Cost: {best_overall_run['cost'] / 60:.2f} minutes")
+        
+        # Plot the best solution found across all runs
+        #print("Plotting the best overall solution...")
+        #plot_solution(sim, best_overall_run['solution'], route_start_t, customer_node_ids, depot_node_id)
 
-    save_results(
-            filename=output_filename,
-            run_number=i + 1,
-            best_cost=best_cost, 
-            run_time=run_time, 
-            route_start_t=route_start_t, 
-            num_vehicles=num_vehicles)
 
+
+'''  
     #plot_solution(sim, best_solution, route_start_t, customer_node_ids, depot_node_id)
     #plot_solution(sim, best_solution["sol"], route_start_t, customer_node_ids, depot_node_id)
+    '''  
