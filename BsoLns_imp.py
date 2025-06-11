@@ -36,16 +36,32 @@ class BSOLNS:
         self.remove_rate = remove_rate
         self.num_customers = len(demands)
 
+# In the BSOLNS class:
+
     def evaluate(self, solution, start_time=None):
-        """Simulate a solution under time‐dependent travel times."""
-        t = self.start_time if start_time is None else start_time
+        """
+        Simulate a solution by summing the duration of each route.
+        """
+        total_duration = 0.0
         for route in solution:
-            prev = 0
-            for cust in route:
-                t += self.travel_time(prev, cust, t)
-                prev = cust
-            t += self.travel_time(prev, 0, t)
-        return t - (self.start_time if start_time is None else start_time)
+            total_duration += self._evaluate_route_cost(route)
+        
+        # The cost is the sum of all travel times.
+        return total_duration
+
+    def _evaluate_route_cost(self, route):
+        """Calculates the total travel time for a single route."""
+        # This function is now the core of all evaluations and is correct for this objective.
+        t = self.start_time
+        duration = 0.0
+        prev = 0
+        for cust in route:
+            travel = self.travel_time(prev, cust, t)
+            duration += travel
+            t += travel # Note: t is local to this route simulation
+            prev = cust
+        duration += self.travel_time(prev, 0, t)
+        return duration
 
     def greedy_initial_solution(self, start_time=None):
         """Build a first solution by repeatedly inserting the nearest feasible customer."""
@@ -92,20 +108,67 @@ class BSOLNS:
             clusters[lbl].append(population[idx])
         return clusters
 
+# In the BSOLNS class, replace your old crossover with this one.
+
     def crossover(self, parent1, parent2):
-        r1, r2 = parent1['sol'], parent2['sol']
-        cut1, cut2 = len(r1)//2, len(r2)//2
-        new = r1[:cut1] + r2[cut2:]
-        all_c = set(range(1, self.num_customers+1))
-        used = {c for route in new for c in route}
-        missing = list(all_c - used)
-        random.shuffle(missing)
-        for c in missing:
-            random.choice(new).append(c)
-        return new
+        """
+        Best Cost Route Crossover (BCRC).
+        Inherits the best routes from both parents to create a new, valid solution.
+        """
+        # 1. Collect all routes from both parents and calculate their individual costs
+        all_routes = parent1['sol'] + parent2['sol']
+        routes_with_costs = []
+        for r in all_routes:
+            if r: # Ignore empty routes
+                routes_with_costs.append({'route': r, 'cost': self._evaluate_route_cost(r)})
+
+        # 2. Sort routes by cost
+        routes_with_costs.sort(key=lambda x: x['cost'])
+
+        # 3. Build a new solution by greedily selecting the best non-conflicting routes
+        new_solution = []
+        customers_served = set()
+        for item in routes_with_costs:
+            route = item['route']
+            # Check if any customer in this route has already been served
+            if not any(c in customers_served for c in route):
+                new_solution.append(route)
+                for c in route:
+                    customers_served.add(c)
+
+        # 4. Find unserved customers and repair the solution
+        all_customers = set(range(1, self.num_customers + 1))
+        unserved = list(all_customers - customers_served)
+        random.shuffle(unserved)
+
+        # 5. Insert unserved customers using the same logic as destroy_repair
+        for c in unserved:
+            best_insertion_cost = float('inf')
+            best_insertion_spot = None
+
+            for i, r in enumerate(new_solution):
+                load = sum(self.demands[x - 1] for x in r)
+                if load + self.demands[c - 1] <= self.capacity:
+                    for pos in range(len(r) + 1):
+                        tmp_route = r[:pos] + [c] + r[pos:]
+                        cost = self._evaluate_route_cost(tmp_route)
+                        if cost < best_insertion_cost:
+                            best_insertion_cost = cost
+                            best_insertion_spot = (i, pos)
+
+            cost_of_new_route = self._evaluate_route_cost([c])
+
+            if best_insertion_spot is not None and best_insertion_cost <= cost_of_new_route:
+                route_idx, pos = best_insertion_spot
+                new_solution[route_idx].insert(pos, c)
+            else:
+                new_solution.append([c])
+                
+        return new_solution
 
     def destroy_repair(self, sol):
         flat = [c for route in sol for c in route]
+        if not flat: return [] # Handle empty solution case
         n_remove = max(1, int(self.remove_rate * len(flat)))
         to_remove = set(random.sample(flat, n_remove))
 
@@ -118,24 +181,37 @@ class BSOLNS:
             removed.extend([c for c in r if c in to_remove])
 
         random.shuffle(removed)
+
         for c in removed:
-            best_cost = float('inf')
-            best_route, best_pos = None, None
+            best_insertion_cost = float('inf')
+            best_insertion_spot = None 
+
+            # Option 1: Try inserting 'c' into an existing route
             for i, r in enumerate(new_routes):
-                load = sum(self.demands[x-1] for x in r)
-                if load + self.demands[c-1] > self.capacity:
-                    continue
-                for pos in range(len(r)+1):
-                    tmp_route = r[:pos] + [c] + r[pos:]
-                    tmp_sol = new_routes[:i] + [tmp_route] + new_routes[i+1:]
-                    cost = self.evaluate(tmp_sol)
-                    if cost < best_cost:
-                        best_cost, best_route, best_pos = cost, i, pos
-            if best_route is None:
-                new_routes.append([c])
+                load = sum(self.demands[x - 1] for x in r)
+                if load + self.demands[c - 1] <= self.capacity:
+                    for pos in range(len(r) + 1):
+                        # Create a temporary route with 'c' inserted
+                        tmp_route = r[:pos] + [c] + r[pos:]
+                        
+                        # Evaluate the cost of ONLY this modified route
+                        cost = self._evaluate_route_cost(tmp_route)
+
+                        if cost < best_insertion_cost:
+                            best_insertion_cost = cost
+                            best_insertion_spot = (i, pos)
+
+            cost_of_new_route = self._evaluate_route_cost([c])
+
+            # Decide: Insert into existing route, or create a new one
+            if best_insertion_spot is not None and best_insertion_cost <= cost_of_new_route:
+                route_idx, pos = best_insertion_spot
+                new_routes[route_idx].insert(pos, c)
             else:
-                new_routes[best_route].insert(best_pos, c)
+                new_routes.append([c])
+        
         return new_routes
+
 
     def select_new_population(self, candidates):
         return sorted(candidates, key=lambda x: x['cost'])[:self.pop_size]
