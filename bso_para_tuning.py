@@ -1,75 +1,85 @@
 import optuna
-from ana_bso_multi import run_bso,customer_demands, depot_node_id, route_start_t, num_vehicles, vehicle_capacity 
+from functools import partial
+import pandas as pd
 
-def objective(trial):
+# Import the necessary functions and data from your main BSO script
+from ana_bso_multi import run_bso, customer_demands, vehicle_capacity, start_time, num_vehicles
+
+def objective(trial, problem_data):
+    """
+    The objective function for Optuna to minimize.
+    It takes a trial object and a dictionary of fixed problem data.
+    """
+    # 1. Set a budget for total evaluations to ensure fair comparison
+    TOTAL_EVALUATIONS_BUDGET = 20000  
+    # 2. Define the search space for hyperparameters
+    pop_size = trial.suggest_categorical('pop_size', [50, 100, 150, 200])
+    # Calculate max_iter based on the budget
+    max_iter = TOTAL_EVALUATIONS_BUDGET // pop_size
     params = {
-        "pop_size":  100,
-        "max_iter":  100,
-        "n_clusters": trial.suggest_int("n_clusters", 2, 10, step=1),
-        "ideas_per_cluster":  trial.suggest_float("crossover_rate", 0.5, 1.0, step=0.1),
-        "remove_rate":   trial.suggest_float("mutation_rate", 0.2, 1.0, step=0.1),}
+        "pop_size": pop_size,
+        "max_iter": max_iter,
+        "n_clusters": trial.suggest_int("n_clusters", 2, 8),
+        "ideas_per_cluster": trial.suggest_int("ideas_per_cluster", 1, 10),
+        "remove_rate": trial.suggest_float("remove_rate", 0.1, 0.6, step=0.05),
+    }
 
-    # Call BSO-LNS directly, passing params
-    best_solution, best_cost, runtime = run_bso(
-        **params,
-        route_start_t=route_start_t,
-        vehicle_capacity=vehicle_capacity,
-        demands=customer_demands,
-        depot_node_id=depot_node_id)
+    # 3. Run the algorithm multiple times and average the results for robustness
+    num_runs_for_averaging = 3
+    all_costs = []
+    for _ in range(num_runs_for_averaging):
+        _, best_cost, _ = run_bso(
+            **params,
+            **problem_data
+        )
+        all_costs.append(best_cost)
     
-    return best_cost
+    # Return the average cost for this set of hyperparameters
+    return sum(all_costs) / len(all_costs)
 
 def main():
-    # Use the TPE sampler (Tree-structured Parzen Estimator)
+    # 4. Package all fixed problem data into a dictionary
+    problem_data = {
+        'start_time': start_time,
+        'vehicle_capacity': vehicle_capacity,
+        'demands': customer_demands,
+    }
+
+    # Use functools.partial to create a new function that has problem_data pre-filled
+    objective_with_data = partial(objective, problem_data=problem_data)
+
+    # Use the TPE sampler for efficient searching
     sampler = optuna.samplers.TPESampler(seed=42)
-    # A pruner to stop unpromising trials early
-    pruner  = optuna.pruners.MedianPruner(n_warmup_steps=15)
+    
+    # A pruner can stop unpromising trials early
+    pruner = optuna.pruners.MedianPruner(n_warmup_steps=5, n_startup_trials=5)
 
     study = optuna.create_study(
         sampler=sampler,
         pruner=pruner,
         direction="minimize",
-        study_name="ga_runtime_tuning"
+        study_name="bso_lns_tuning"
     )
 
-    # You can limit by number of trials or wall-clock time
-    study.optimize(objective, n_trials=300, timeout=None, n_jobs=4)
+    # Run the optimization
+    study.optimize(objective_with_data, n_trials=100, n_jobs=1)
 
-    print("Best parameters:", study.best_params)
-    print("Best runtime   :", study.best_value, "seconds")
-'''
-    # --- Save results to Excel in the specified format ---
-import os
-import pandas as pd
+    # 5. Provide a detailed report at the end
+    print("\n" + "="*30)
+    print("--- OPTIMIZATION COMPLETE ---")
+    print(f"Number of finished trials: {len(study.trials)}")
+    print("Best trial:")
+    trial = study.best_trial
+    print(f"  Value (Average Cost): {trial.value:.2f}")
+    print("  Best Parameters: ")
+    for key, value in trial.params.items():
+        print(f"    {key}: {value}")
 
-def save_parameters(, runtime_seconds, , name="result"):
-    """Save results to Excel in the specified format"""
-    results_path = os.path.join(os.getcwd(), "output", f"{name}.xlsx")
+    # Save all results to a CSV file for analysis
+    results_df = study.trials_dataframe()
+    results_df.to_csv("bso_tuning_full_results.csv", index=False)
+    print("\n✅ Full tuning results saved to 'bso_tuning_full_results.csv'")
 
-    try:
-        os.makedirs(os.path.dirname(results_path), exist_ok=True)
-        if os.path.exists(results_path):
-            df = pd.read_excel(results_path)
-        else:
-            df = pd.DataFrame()
-        
-        # Create new row
-        new_data = {
-            'route_start_t': route_start_t_label,
-            'num_vehicles':num_vehicles,
-            'test': len(df) + 1,
-            'traveltime': cost,
-            'runtime': runtime_seconds
-        }
-        
-        new_row = pd.DataFrame([new_data])
-        df = pd.concat([df, new_row], ignore_index=True)
-        
-        df.to_excel(results_path, index=False)
-        print(f"✅ Results saved: {route_start_t_label}, Test {len(df)}")
-        
-    except Exception as e:
-        print(f"❌ Error: {e}")
-'''
+
 if __name__ == "__main__":
     main()
