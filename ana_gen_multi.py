@@ -24,7 +24,7 @@ from export_excel import save_results
 # Large Customerbase
 #[386 ,370 , 17, 267 ,303, 321 ,305 ,308, 342, 400, 6, 372, 358,  300, 404, 333, 390, 369, 325, 388]
 depot_node_id = 406   
-customer_node_ids =  [386 ,370 , 17, 267 ,303, 321 ,305 ,308, 342, 400, 6, 372, 358,  300, 404, 333, 390, 369, 325, 388]
+customer_node_ids =  [386 ,370 , 17, 267 ,3033, 321 ,305 ,308, 342, 400, 6, 372, 358,  300, 404, 333, 390, 369, 325, 388]
 time_step_minutes = 10  # mins
 sim_start = 6 * 60 *60 # 6:00
 route_start_t = 7 * 60 * 60
@@ -36,12 +36,12 @@ vehicle_capacity = math.ceil(total_demand / num_vehicles)
 
 # Parameters for GA
 default_params = {
-"pop_size": 100,
-"max_gens": 100,
-"tournament_size": 2,
-"crossover_rate": 0.6,
-"mutation_rate": 0.5,
-"elite_count": 1,}
+"pop_size": 400,
+"max_gens": 50,
+"tournament_size": 3,
+"crossover_rate": 0.9,
+"mutation_rate": 0.11,
+"elite_count": 57,}
 
 # Time-breakpoints demand function
 t1, t2, t3, t4 = 6.5 * 60, 8.5 * 60, 10 * 60, 12 * 60
@@ -125,27 +125,57 @@ def run_ga(route_start_t, num_vehicles, vehicle_capacity,
     best_solution, best_cost = ga_solver.run()
     run_time = time.time() - start_time
 
-    # Optional: save results for bookkeeping
-    save_results(best_cost, run_time, route_start_t, num_vehicles)
+    # Save results for bookkeeping
+    #save_results(best_cost, run_time, route_start_t, num_vehicles)
 
     return best_solution, best_cost, run_time
 
 if __name__ == '__main__':
-#2. Use the correct variables in your print and save functions
-# Cost is in seconds, so convert to minutes for display
-    best_solution, best_cost, run_time = run_ga(
-        **default_params,  
-        route_start_t=route_start_t,
-        num_vehicles=num_vehicles,
-        vehicle_capacity=vehicle_capacity,
-        period_breaks=period_breaks,
-        demands_dict=demands_dict,
-        depot_node_id=depot_node_id)
+    
+    num_runs = 40
+    all_results=[]
+
+    output_name = "ga_40_runs_log" 
+
+    if os.path.exists(output_filename):
+        os.remove(output_filename)
+
+    for i in range(num_runs):
+        print(f"\n--- Starting Run {i+1} of {num_runs}")
+        #2.Run with default parameters
+        best_solution, best_cost, run_time = run_ga(
+            **default_params,  
+            route_start_t=route_start_t,
+            num_vehicles=num_vehicles,
+            vehicle_capacity=vehicle_capacity,
+            period_breaks=period_breaks,
+            demands_dict=demands_dict,
+            depot_node_id=depot_node_id)
 
     print(f"GA final best cost: {best_cost / 60:.2f} minutes ({best_cost:.0f} seconds)")
-    print(f"Solution details (giant_tour, splits): {best_solution}")
+        # 3. Collect the key results from this run
+    all_results.append({
+            'run_number': i + 1,
+            'best_cost_seconds': best_cost,
+            'run_time_seconds': run_time,
+            'solution_tour': best_solution[0],  # Storing the giant tour
+            'solution_splits': best_solution[1] # Storing the splits
+        })    
+    print("\n ---Complete-----")
+    result_df = pd.DataFrame(all_results)
 
-    save_results(best_cost, run_time, route_start_t, num_vehicles)
+    output_filename ="ga_multiple runs_results.csv"
 
+    
+    #print(f"Solution details (giant_tour, splits): {best_solution}")
 
-    # plot_solution(sim, best_solution["sol"], route_start_t, customer_node_ids, depot_node_id)
+    save_results(
+            filename=output_filename,
+            run_number=i + 1,
+            best_cost=best_cost, 
+            run_time=run_time, 
+            route_start_t=route_start_t, 
+            num_vehicles=num_vehicles)
+
+    #plot_solution(sim, best_solution, route_start_t, customer_node_ids, depot_node_id)
+    #plot_solution(sim, best_solution["sol"], route_start_t, customer_node_ids, depot_node_id)

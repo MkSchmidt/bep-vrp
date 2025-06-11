@@ -17,10 +17,16 @@ import time
 from export_excel import save_results
 
 # Define BSO-LNS Problem: Depot and Customers
+# Small Customerbase
+#[386 ,370 , 17 ,267 ,303, 321,305]
+# Medium Customerbase
+#[386, 370,  17,  303,  305,  342, 400,  372, 358 , 404 ,333 ,390 ,369]
+# Large Customerbase
+#[386 ,370 , 17, 267 ,303, 321 ,305 ,308, 342, 400, 6, 372, 358,  300, 404, 333, 390, 369, 325, 388]
 depot_node_id = 406   
-customer_node_ids = [386 ,370 , 17 ,267 ,303, 321,305]
+customer_node_ids = [386 ,370 , 17, 267 ,303, 321 ,305 ,308, 342, 400, 6, 372, 358,  300, 404, 333, 390, 369, 325, 388]
 sim_start = 6 * 60 * 60  # 6:00
-route_start_t = (15 * 60 + 30)*60  # 15:30 (in seconds)
+start_time = (7 * 60)*60  # 15:30 (in seconds)
 num_vehicles = 2
 n_demand = [1] * len(customer_node_ids)  #Demand per customer
 demands = {customer_node_ids[i]: n_demand[i] for i in range(len(customer_node_ids))}
@@ -69,12 +75,12 @@ def td_travel_time_wrapper(u_bso_idx, v_bso_idx, depart_t):
 
 def run_bso(start_time, vehicle_capacity,demands, pop_size, n_clusters,ideas_per_cluster, max_iter, remove_rate):
     # Run BSO-LNS solver
-    start_time = time.time()
+    alg_start_time = time.time()
     bso_solver = BSOLNS(
         travel_time_fn=td_travel_time_wrapper,
-        demands=customer_demands,
+        demands=demands,
         vehicle_capacity=vehicle_capacity,
-        start_time=route_start_t,
+        start_time=start_time,
         pop_size=pop_size,
         n_clusters=n_clusters,
         ideas_per_cluster=ideas_per_cluster,
@@ -82,9 +88,11 @@ def run_bso(start_time, vehicle_capacity,demands, pop_size, n_clusters,ideas_per
         remove_rate=remove_rate
     )
 
-    save_results(best_cost, run_time, route_start_t, num_vehicles)
-    best_solution, best_cost = bso_solver.run()
-    run_time = time.time() - start_time
+    
+    best_solution, cost_history = bso_solver.run()
+    best_cost =best_solution['cost']
+    run_time = time.time() - alg_start_time
+    save_results(best_cost, run_time, start_time, num_vehicles)
 
     return best_solution, best_cost, run_time
 
@@ -92,14 +100,12 @@ def run_bso(start_time, vehicle_capacity,demands, pop_size, n_clusters,ideas_per
 def main():
     best_solution, best_cost, run_time = run_bso(
         **default_params,  
-        travel_time_fn=td_travel_time_wrapper,
         demands=customer_demands,
         vehicle_capacity=vehicle_capacity,
-        start_time=route_start_t,
-        depot_node_id=depot_node_id)
+        start_time=start_time,)
     
     print(f"BSO-LNS final best cost: {best_solution['cost']:.2f}, Routes: {best_solution['sol']}")
-    save_results(best_solution["cost"], run_time, route_start_t, num_vehicles)
+    save_results(best_solution["cost"], run_time, start_time, num_vehicles)
 
     def test_edge_example(u=12 ,v=275):
         # Time-breakpoints demand function
