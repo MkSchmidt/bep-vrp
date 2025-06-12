@@ -93,7 +93,7 @@ class TrafficSim:
 
     def _get_flow(self, source: int, dest: int, t: float) -> float:
         volume = self.G.edges[source, dest].get("volume") or 0
-        return volume * self._demand(t)
+        return volume * demand(t)
     
     def _get_critical_density(self, source: int, dest: int) -> float:
         attrs = self.G.edges[source, dest]
@@ -110,7 +110,7 @@ class TrafficSim:
     def _demand(self, t: float) -> float:
         low, medium, high = 0.1, 0.5, 1.1
         demands = np.array([ low, low, high, high, medium, medium, high, high, low, low ])
-        times =   np.array([ 0,   4,   8.5,  10,   12,     16.5,   18,   20,   22,  24  ]) * 3600    
+        times =   np.array([ 0,   4,   8.5,  10,   12,     16.5,   18,   20,   22,  24  ]) * 3600
         partial_sums = (times[1:] - times[:-1]) * (demands[1:] + demands[:-1]) / 2 / (3600 * 24)
         normalized_demands = demands / np.sum(partial_sums)
         return np.interp(t, times, normalized_demands)
@@ -132,3 +132,91 @@ class VRP:
             customers_visited = customers_visited & route_set - {self.depot,}
 
         return len(self.customers ^ customers_visited) == 0
+
+def demand(t: float) -> float:
+    low, medium, high = 0.1, 0.5, 1.1
+    
+    # Define the base demand levels and their corresponding times
+    demands = np.array([low, low, high, medium, medium, high, low, low])
+    times   = np.array([0,   4,   8.5,  12,     16.5,   18,   22,   24]) * 3600
+    
+    # Helper function to calculate quarter-power decay parameters
+    def get_quarter_power_params(t1, y1, t2, y2):
+        """Calculate parameters a and b for y = a(b-t)^(1/4) given two points"""
+        if abs(y1) == abs(y2):
+            # Fallback to linear if same absolute values
+            return None, None
+        
+        # Using explicit formulas: b = (y1^4*t2 - y2^4*t1)/(y1^4 - y2^4)
+        y1_4 = y1**4
+        y2_4 = y2**4
+        b = (y1_4 * t2 - y2_4 * t1) / (y1_4 - y2_4)
+        a = y1 / (b - t1)**(1/4) if (b - t1) > 0 else None
+        
+        return a, b
+    
+    t = t % (24*3600)
+
+    # Determine which segment we're in
+    segment_idx = np.searchsorted(times, t, side='right') - 1
+    segment_idx = max(0, min(segment_idx, len(times) - 2))
+    
+    t1, t2 = times[segment_idx], times[segment_idx + 1]
+    y1, y2 = demands[segment_idx], demands[segment_idx + 1]
+    
+    if y1 > y2:
+        # Use quarter-power decay for declining periods
+        a, b = get_quarter_power_params(t1, y1, t2, y2)
+        
+        if a is not None and b is not None and (b - t) > 0:
+            demand_value = a * (b - t)**(1/4)
+        else:
+            # Fallback to linear interpolation if parameters are invalid
+            demand_value = np.interp(t, [t1, t2], [y1, y2])
+    else:
+        # Use linear interpolation for all other segments
+        demand_value = np.interp(t, [t1, t2], [y1, y2])
+    
+    # Calculate exact normalization using analytical integration
+    def integrate_quarter_power(a, b, t1, t2):
+        """Analytically integrate a(b-t)^(1/4) from t1 to t2"""
+        # Integral of a(b-t)^(1/4) = -4a/5 * (b-t)^(5/4) + C
+        def antiderivative(t):
+            return -4*a/5 * (b - t)**(5/4)
+        
+        return antiderivative(t2) - antiderivative(t1)
+    
+    def integrate_linear(y1, y2, t1, t2):
+        """Integrate linear interpolation from t1 to t2"""
+        return (t2 - t1) * (y1 + y2) / 2
+    
+    # Calculate the total integral over 24 hours for normalization
+    total_integral = 0
+    
+    for i in range(len(times) - 1):
+        t_start, t_end = times[i], times[i + 1]
+        y_start, y_end = demands[i], demands[i + 1]
+        
+        # Check if this segment uses quarter-power decay
+        morning_decline = (t_start == 8.5 * 3600 and t_end == 12 * 3600)
+        evening_decline = (t_start == 18 * 3600 and t_end == 22 * 3600)
+        
+        if (morning_decline or evening_decline) and y_start > y_end:
+            # Use analytical integration for quarter-power decay
+            a_seg, b_seg = get_quarter_power_params(t_start, y_start, t_end, y_end)
+            
+            if a_seg is not None and b_seg is not None:
+                segment_integral = integrate_quarter_power(a_seg, b_seg, t_start, t_end)
+            else:
+                # Fallback to linear integration
+                segment_integral = integrate_linear(y_start, y_end, t_start, t_end)
+        else:
+            # Use linear integration for other segments
+            segment_integral = integrate_linear(y_start, y_end, t_start, t_end)
+        
+        total_integral += segment_integral
+    
+    # Normalize so the total integral over 24 hours equals 1
+    normalization_factor = (24 * 3600) / total_integral
+    
+    return demand_value * normalization_factor

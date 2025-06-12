@@ -97,12 +97,28 @@ class BSOLNS:
         cut1, cut2 = len(r1)//2, len(r2)//2
         new = r1[:cut1] + r2[cut2:]
         all_c = set(range(1, self.num_customers+1))
-        used = {c for route in new for c in route}
+        used = set()
+        unduplicated = []
+        for route in new:
+            unduplicated_route = []
+            for i, c in enumerate(route):
+                if c not in used:
+                    unduplicated_route.append(c)
+                    used.add(c)
+            unduplicated.append(unduplicated_route)
         missing = list(all_c - used)
         random.shuffle(missing)
         for c in missing:
-            random.choice(new).append(c)
-        return new
+            add_candidates = [ route for route in unduplicated if len(route) < self.capacity ]
+            if len(add_candidates) == 0:
+                breakpoint()
+            random.choice(add_candidates).append(c)
+
+        for r in unduplicated:
+            if len(r) > self.capacity:
+                breakpoint()
+
+        return unduplicated
 
     def destroy_repair(self, sol):
         flat = [c for route in sol for c in route]
@@ -122,8 +138,8 @@ class BSOLNS:
             best_cost = float('inf')
             best_route, best_pos = None, None
             for i, r in enumerate(new_routes):
-                load = sum(self.demands[x-1] for x in r)
-                if load + self.demands[c-1] > self.capacity:
+                load = len(r)
+                if load + 1 > self.capacity:
                     continue
                 for pos in range(len(r)+1):
                     tmp_route = r[:pos] + [c] + r[pos:]
@@ -135,6 +151,9 @@ class BSOLNS:
                 new_routes.append([c])
             else:
                 new_routes[best_route].insert(best_pos, c)
+        for r in new_routes:
+            if len(r) > self.capacity:
+                breakpoint()
         return new_routes
 
     def select_new_population(self, candidates):

@@ -84,6 +84,12 @@ def plot_solution(sim, bso_solution_routes, start_t, customer_node_ids, depot_no
                 for (u, v), entry in seg_times.items():
                     bso_edges_for_animation[(u, v)] = entry
                     bso_edges_for_animation[(v, u)] = entry
+    
+    for route in bso_solution_routes:
+        route_real_ids = [depot_node_id] + [ customer_node_ids[node - 1] for node in route ] + [depot_node_id]  
+        xs = [ sim.G.nodes[node]["coordinates"][0] for node in route_real_ids ]
+        ys = [ sim.G.nodes[node]["coordinates"][1] for node in route_real_ids ]
+        plt.plot(xs, ys, color="red")
 
     # Update function for animation
     def update_frame(frame_minutes_offset):
