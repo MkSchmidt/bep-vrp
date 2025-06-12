@@ -166,12 +166,12 @@ def main(cfg, net, depot, customers, vehs):
         time_windows=time_windows,
         period_breaks=period_breaks,
         emission_fn=None,
-        pop_size=50,
-        max_gens=10,
-        tournament_size=2,
+        pop_size=400,
+        max_gens=50,
+        tournament_size=3,
         crossover_rate=0.9,
-        mutation_rate=0.2,
-        elite_count=2,
+        mutation_rate=0.11,
+        elite_count=57,
         start_time=0.0,
     )
 
