@@ -9,6 +9,7 @@ class GA_DP:
                  travel_time_fn,
                      # function(u: int, v: int, depart_time: float) → float
                      #     Returns travel time (seconds) from u→v when departing at depart_time.
+                 route_travel_time_fn,
                  demands_dict,
                      # dict[int → float]: customer node ID → demand. Depot is assumed ID 0.
                  num_vehicles,
@@ -40,6 +41,7 @@ class GA_DP:
         """
         # 1. Graph + demand
         self.travel_time = travel_time_fn
+        self.route_travel_time = route_travel_time_fn
         self.demands = demands_dict
         self.customer_ids = sorted(demands_dict.keys())
         self.N = len(self.customer_ids)
@@ -171,7 +173,8 @@ class GA_DP:
                 return float("inf")
 
             # 3. Run DP to compute minimum travel time (minutes) for that subroute
-            travel_time_for_route, _ = self._dynamic_programming(route, v_idx)
+            #travel_time_for_route, _ = self._dynamic_programming(route, v_idx)
+            travel_time_for_route = self.route_travel_time(route, self.start_time)
             total_travel_time += travel_time_for_route
 
         return total_travel_time

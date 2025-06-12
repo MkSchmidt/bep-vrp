@@ -24,11 +24,11 @@ from export_excel import save_results
 # Large Customerbase
 #[386 ,370 , 17, 267 ,303, 321 ,305 ,308, 342, 400, 6, 372, 358,  300, 404, 333, 390, 369, 325, 388]
 depot_node_id = 406   
-customer_node_ids = [386 ,370 , 17, 267 ,303, 321 ,305 ,308, 342, 400, 6, 372, 358,  300, 404, 333, 390, 369, 325, 388] 
+customer_node_ids = [386 ,370 , 17, 267 ,303, 321 ,305 ,308, 342, 400, 6, 372, 358,  300, 404, 333, 390, 369, 325, 388][0:13]
 time_step_minutes = 10  # mins
 sim_start = 6 * 60 *60 # 6:00
 route_start_t = 7 * 60 * 60
-num_vehicles = 4
+num_vehicles = 2
 n_demand = [1] * len(customer_node_ids)  #Demand per customer
 demands_dict = {customer_node_ids[i]: n_demand[i] for i in range(len(customer_node_ids))}
 total_demand = sum(n_demand)
@@ -96,6 +96,12 @@ def td_travel_time_wrapper(u, v, depart_t):
         memoized_travel_times[cache_key] = duration
         return duration
 
+def route_travel_time_wrapper(route, depart_t):
+    route_with_depot = [depot_node_id] + route + [depot_node_id]
+    arrival = depart_t
+    for u, v in pairwise(route_with_depot):
+        arrival += td_travel_time_wrapper(u, v, arrival)
+    return arrival - depart_t
 
 # 5) Instantiate GA_DP, passing exactly those arguments:
 def run_ga(route_start_t, num_vehicles, vehicle_capacity,
@@ -107,6 +113,7 @@ def run_ga(route_start_t, num_vehicles, vehicle_capacity,
     start_time = time.time()
     ga_solver = GA_DP(
         travel_time_fn=td_travel_time_wrapper,
+        route_travel_time_fn=route_travel_time_wrapper,
         demands_dict=demands_dict,
         num_vehicles=num_vehicles,
         vehicle_capacity=vehicle_capacity,
@@ -124,7 +131,6 @@ def run_ga(route_start_t, num_vehicles, vehicle_capacity,
 
     best_solution, best_cost = ga_solver.run()
     run_time = time.time() - start_time
-
     # Save results for bookkeeping
     #save_results(best_cost, run_time, route_start_t, num_vehicles)
 
@@ -133,7 +139,7 @@ def run_ga(route_start_t, num_vehicles, vehicle_capacity,
 if __name__ == '__main__':
     
     num_runs = 40
-    experiment_name = "ga_40_runs_small_customers"
+    experiment_name = "ga_40_runs_13c2v"
     
     # Let save_results function determine the full path
     output_file_path = os.path.join(os.getcwd(), "output", f"{experiment_name}.xlsx")
@@ -166,7 +172,6 @@ if __name__ == '__main__':
         save_results(
                 cost=best_cost, 
                 runtime_seconds=run_time, 
-                route_start_t=route_start_t, 
                 num_vehicles=num_vehicles,
                 name=experiment_name)   
             
