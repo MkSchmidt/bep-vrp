@@ -79,8 +79,8 @@ def run(num_customers, num_vehicles, sim_number=1):
     run_time = time.time() - start_time
     print(f"BSO-LNS final best cost: {best_solution['cost']:.2f}, Routes: {best_solution['sol']}")
 
-    plot_solution(sim, best_solution["sol"], route_start_t, customer_node_ids, depot_node_id)
-    breakpoint()
+    #plot_solution(sim, best_solution["sol"], route_start_t, customer_node_ids, depot_node_id)
+    #breakpoint()
 
     save_results(best_solution["cost"], run_time, num_customers, num_vehicles)
 
@@ -96,4 +96,4 @@ def run(num_customers, num_vehicles, sim_number=1):
 
 
 for i in range(5):
-    run(13,4, sim_number=i)
+    run(7,2, sim_number=i)

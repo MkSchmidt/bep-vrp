@@ -133,12 +133,11 @@ class VRP:
 
         return len(self.customers ^ customers_visited) == 0
 
+period_breaks = np.array([0,   4,   8.5,  12,     16.5,   18,   22,   24]) * 3600
+low_demand, medium_demand, high_demand = 0.1, 0.5, 1.1
+demands = np.array([low_demand, low_demand, high_demand, medium_demand, medium_demand, high_demand, low_demand, low_demand])
+
 def demand(t: float) -> float:
-    low, medium, high = 0.1, 0.5, 1.1
-    
-    # Define the base demand levels and their corresponding times
-    demands = np.array([low, low, high, medium, medium, high, low, low])
-    times   = np.array([0,   4,   8.5,  12,     16.5,   18,   22,   24]) * 3600
     
     # Helper function to calculate quarter-power decay parameters
     def get_quarter_power_params(t1, y1, t2, y2):
@@ -158,10 +157,10 @@ def demand(t: float) -> float:
     t = t % (24*3600)
 
     # Determine which segment we're in
-    segment_idx = np.searchsorted(times, t, side='right') - 1
-    segment_idx = max(0, min(segment_idx, len(times) - 2))
+    segment_idx = np.searchsorted(period_breaks, t, side='right') - 1
+    segment_idx = max(0, min(segment_idx, len(period_breaks) - 2))
     
-    t1, t2 = times[segment_idx], times[segment_idx + 1]
+    t1, t2 = period_breaks[segment_idx], period_breaks[segment_idx + 1]
     y1, y2 = demands[segment_idx], demands[segment_idx + 1]
     
     if y1 > y2:
@@ -193,8 +192,8 @@ def demand(t: float) -> float:
     # Calculate the total integral over 24 hours for normalization
     total_integral = 0
     
-    for i in range(len(times) - 1):
-        t_start, t_end = times[i], times[i + 1]
+    for i in range(len(period_breaks) - 1):
+        t_start, t_end = period_breaks[i], period_breaks[i + 1]
         y_start, y_end = demands[i], demands[i + 1]
         
         # Check if this segment uses quarter-power decay
