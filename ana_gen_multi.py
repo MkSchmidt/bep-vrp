@@ -12,7 +12,7 @@ from read_files import (
 from GA_imp import GA_DP 
 import vrp_sim as vs
 from read_cities import read_anaheim
-from plot_solution import plot_solution
+from plot_solution import plot_solution_ga
 import time
 from export_excel import save_results
 
@@ -24,11 +24,11 @@ from export_excel import save_results
 # Large Customerbase
 #[386 ,370 , 17, 267 ,303, 321 ,305 ,308, 342, 400, 6, 372, 358,  300, 404, 333, 390, 369, 325, 388]
 depot_node_id = 406   
-customer_node_ids = [386 ,370 , 17, 267 ,303, 321 ,305 ,308, 342, 400, 6, 372, 358,  300, 404, 333, 390, 369, 325, 388][0:13]
+customer_node_ids = [386 ,370 , 17, 267 ,303, 321 ,305 ,308, 342, 400, 6, 372, 358,  300, 404, 333, 390, 369, 325, 388][0:20]
 time_step_minutes = 10  # mins
 sim_start = 6 * 60 *60 # 6:00
 route_start_t = 7 * 60 * 60
-num_vehicles = 2
+num_vehicles = 4
 n_demand = [1] * len(customer_node_ids)  #Demand per customer
 demands_dict = {customer_node_ids[i]: n_demand[i] for i in range(len(customer_node_ids))}
 total_demand = sum(n_demand)
@@ -133,13 +133,14 @@ def run_ga(route_start_t, num_vehicles, vehicle_capacity,
     run_time = time.time() - start_time
     # Save results for bookkeeping
     #save_results(best_cost, run_time, route_start_t, num_vehicles)
+    #plot_solution_ga(sim, best_solution[0], best_solution[1], depot_node_id)
 
     return best_solution, best_cost, run_time
 
 if __name__ == '__main__':
     
-    num_runs = 40
-    experiment_name = "ga_40_runs_13c2v"
+    num_runs = 5
+    experiment_name = "ga_5_runs_20c4v"
     
     # Let save_results function determine the full path
     output_file_path = os.path.join(os.getcwd(), "output", f"{experiment_name}.xlsx")

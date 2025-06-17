@@ -18,6 +18,51 @@ def get_route_colors(num_routes):
     colormap = plt.cm.get_cmap('tab10', num_routes)
     return [colormap(i) for i in range(num_routes)]
 
+def plot_solution_ga(sim, tour, split, depot_node_id):
+    routes = []
+    prev = 0
+    for point in split:
+        routes.append(tour[prev:point])
+        prev = point
+    routes.append(tour[prev:])
+
+    # Coordinates for plotting
+    pos = {n: data["coordinates"] for n, data in sim.G.nodes(data=True)}
+    edges = list(sim.G.edges())
+    # Plot setup: draw nodes & edges once
+    fig, ax = plt.subplots(figsize=(10, 8))
+    
+#    nx.draw_networkx_nodes(
+#        sim.G, pos,
+#        node_size=1, ax=ax, node_color='gray'
+#    )
+#    nx.draw_networkx_nodes(
+#        sim.G, pos,
+#        nodelist=tour,
+#        node_size=20, ax=ax, node_color='blue'
+#    )
+#    nx.draw_networkx_nodes(
+#        sim.G, pos,
+#        nodelist=[depot_node_id],
+#        node_size=20, ax=ax, node_color='red'
+#    )
+#    drawn = nx.draw_networkx_edges(
+#        sim.G, pos,
+#        edgelist=edges, edge_color="0.8", ax=ax
+#    )
+
+    for route in routes:
+        xs = [pos[depot_node_id][0]] + [ pos[node][0] for node in route ] + [pos[depot_node_id][0]]
+        ys = [pos[depot_node_id][1]] + [ pos[node][1] for node in route ] + [pos[depot_node_id][1]]
+        plt.plot(xs, ys)
+
+    ax.set_aspect('equal')
+    plt.xlabel("X coordinate")
+    plt.ylabel("Y coordinate")
+    plt.tight_layout()
+    plt.show()
+
+
 def plot_solution(sim, bso_solution_routes, start_t, customer_node_ids, depot_node_id):
     # Coordinates for plotting
     pos = {n: data["coordinates"] for n, data in sim.G.nodes(data=True)}
