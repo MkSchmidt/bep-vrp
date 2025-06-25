@@ -17,6 +17,6 @@ def read_anaheim():
     edges["length"] = edges["length"] * 0.3048                  #[m]
     edges["free_flow_time"] = edges["free_flow_time"] * 60      #[s]
     edges["capacity"] = edges["capacity"] / 3600                #[veh/s]
-    flows["volume"] = (flows["volume"]*8) / 3600                    #[veh/s]
+    flows["volume"] = (flows["volume"]) / 3600                    #[veh/s]
 
     return edges, nodes, trips, flows
